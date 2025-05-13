@@ -43,3 +43,21 @@ def handle_error(error: Exception) -> None:
     }
     print(json.dumps(error_msg))
     sys.exit(1)
+
+def normalize_url_string(text: str) -> str:
+    """
+    Normaliza uma string para uso em URLs, removendo acentos e substituindo caracteres especiais
+    """
+    import unicodedata
+    import re
+    
+    # Normaliza a string: remove acentos, mas mantém as letras
+    text = unicodedata.normalize('NFKD', text).encode('ASCII', 'ignore').decode('ASCII')
+    
+    # Remove caracteres especiais, mantém apenas letras, números, espaços e alguns caracteres básicos
+    text = re.sub(r'[^\w\s\-]', '', text)
+    
+    # Substitui espaços por +
+    text = text.replace(' ', '+')
+    
+    return text

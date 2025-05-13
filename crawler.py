@@ -2,7 +2,7 @@ import asyncio
 from typing import Dict, List, Any
 from playwright.async_api import async_playwright, Page
 
-from utils import log_error
+from utils import log_error, normalize_url_string
 from extractor import extract_business_data
 
 async def scroll_to_load_more(page: Page, max_scrolls: int = 5):
@@ -70,7 +70,13 @@ async def scroll_to_load_more(page: Page, max_scrolls: int = 5):
 async def scrape_google_maps(region: str, business_type: str, max_results: int = 10, keywords: str = None) -> List[Dict[str, Any]]:
     results = []
     
-    log_error(f"Iniciando busca por '{business_type}' em '{region}'...")
+    # Garante que os caracteres são exibidos corretamente no log
+    try:
+        region_display = region.encode('latin1').decode('utf-8')
+    except:
+        region_display = region
+        
+    log_error(f"Iniciando busca por '{business_type}' em '{region_display}'...")
     
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
@@ -79,12 +85,12 @@ async def scrape_google_maps(region: str, business_type: str, max_results: int =
         )
         page = await context.new_page()
         await page.set_viewport_size({"width": 1366, "height": 768})
-        
         search_query = f"{business_type} em {region}"
         if keywords:
             search_query += f" {keywords}"
         
-        encoded_query = search_query.replace(" ", "+")
+        # Normaliza a query removendo acentos e caracteres especiais
+        encoded_query = normalize_url_string(search_query)
         url = f"https://www.google.com/maps/search/{encoded_query}"
         
         log_error(f"Navegando: {url}")
