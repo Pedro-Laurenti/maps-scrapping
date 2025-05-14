@@ -2,8 +2,8 @@ import asyncio
 from typing import Dict, List, Any
 from playwright.async_api import async_playwright, Page
 
-from utils import log_error, normalize_url_string
-from extractor import extract_business_data
+from src.utils import log_error, normalize_url_string
+from src.extractor import extract_business_data
 
 async def scroll_to_load_more(page: Page, max_scrolls: int = 5):
     try:

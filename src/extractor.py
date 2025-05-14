@@ -1,7 +1,7 @@
 import asyncio
 from typing import Dict, Any
 from playwright.async_api import Page
-from utils import log_error
+from src.utils import log_error
 
 async def extract_business_data(page: Page, business_element) -> Dict[str, Any]:
     business_data = {

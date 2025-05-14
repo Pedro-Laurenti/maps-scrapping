@@ -10,8 +10,11 @@ IF NOT EXIST ".venv\" (
 :: Ativar o ambiente virtual
 CALL .venv\Scripts\activate.bat
 
+:: Instalar o pacote em modo de desenvolvimento (se ainda não estiver instalado)
+pip install -e . > nul 2>&1
+
 :: Executar o script com os parâmetros de teste
-python __init__.py < params.json > results.json
+python app.py < params.json > results.json
 
 :: Manter a janela aberta para ver os resultados
 PAUSE

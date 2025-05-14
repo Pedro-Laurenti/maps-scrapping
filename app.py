@@ -1,6 +1,6 @@
 import asyncio
-from utils import read_input_params, output_results, handle_error
-from crawler import scrape_google_maps
+from src.utils import read_input_params, output_results, handle_error
+from src.crawler import scrape_google_maps
 
 async def main():
     try:
