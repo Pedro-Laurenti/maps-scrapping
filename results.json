@@ -1,1 +1,290 @@
-[{"name": "Brasil Park Shopping", "address": "Av. Brasil Norte, 505 - Centro, Anápolis - GO, 75113-570", "phone": "(62) 3701-2250", "category": "Shopping center", "rating": "4,4", "reviews": "20.048"}, {"name": "Park Shopping da Construção", "address": "RUA PB 6 QD 36 LT 14 - Parque Brasilia, Anápolis - GO, 75093-755", "phone": "(62) 3313-1402", "category": "Loja de materiais de construção", "rating": "4,1", "reviews": "15"}, {"name": "Empório do Parque", "address": "Parque Brasilia, Anápolis - GO, 75093-670", "phone": "(62) 3976-2180", "category": "Supermercado", "rating": "4,5", "reviews": "50"}, {"name": "Super Ração & Cia.", "address": "Av. PB 1, 592 - qd 47 lt 18 loja 2 - Parque Brasilia 2A Etapa, Anápolis - GO, 75093-670", "phone": "(62) 3976-1500", "category": "Pet Shop", "rating": "4,4", "reviews": "47"}, {"name": "Ferrama", "address": "R. 8 - Parque Brasilia, Anápolis - GO, 75093-765", "phone": "91745001", "category": "Loja", "rating": "3,7", "reviews": "3"}]
+[
+  {
+    "name": "Trï¿½s Gastronomia de Famï¿½lia",
+    "address": "Av jamel Cecï¿½lio, R. L-25, qd 57 - Jundiaï¿½, Anï¿½polis - GO, 75110-330",
+    "phone": "(62) 99200-9090",
+    "category": "Restaurante",
+    "rating": "4,6",
+    "reviews": "66"
+  },
+  {
+    "name": "Restaurante Fulï¿½ Do Cerrado",
+    "address": "Rua Luiz Franï¿½a, nï¿½21 esquina c/ Praï¿½a, R. Henrique Bastos Curado - Jundiaï¿½, Anï¿½polis - GO, 75110-760",
+    "phone": "(62) 99104-9580",
+    "category": "Restaurante self-service",
+    "rating": "4,7",
+    "reviews": "1.453"
+  },
+  {
+    "name": "Xico Baru Restaurante",
+    "address": "Buffet por kg (Almoï¿½o), Restaurante Contemporï¿½neo, Risotos, Ceviches Drinks, Cerveja, Grelhados, Tira Gosto, Restaurante - Av. Pinheiro Chagas, Q 12 - lt 6, 184 - Jundiaï¿½, Anï¿½polis - GO, 75110-580",
+    "phone": "(62) 98328-6011",
+    "category": "Restaurante",
+    "rating": "4,4",
+    "reviews": "1.234"
+  },
+  {
+    "name": "Restaurante Barriga Cheia",
+    "address": "Av. Mato Grosso, 352 - Jundiaï¿½, Anï¿½polis - GO, 75113-170",
+    "phone": "(62) 3701-3093",
+    "category": "Restaurante por quilo",
+    "rating": "4,4",
+    "reviews": "1.695"
+  },
+  {
+    "name": "Mr.Cheff Restaurante e Churrascaria",
+    "address": "Av. Luï¿½s Carpaneda, 18 - Vila Jaiara, Anï¿½polis - GO, 75064-120",
+    "phone": "(62) 3319-4619",
+    "category": "Restaurante self-service",
+    "rating": "4,5",
+    "reviews": "557"
+  },
+  {
+    "name": "Restaurante Sabor Caipira",
+    "address": "R. Cel. Aquiles de Pina, 235 - St. Central, Anï¿½polis - GO, 75020-070",
+    "phone": "(62) 3324-4333",
+    "category": "Restaurante self-service",
+    "rating": "4,5",
+    "reviews": "1.562"
+  },
+  {
+    "name": "Restaurante Barriga Cheia II",
+    "address": "Av. Universitï¿½ria, 2742 - Vila Santa Isabel, Anï¿½polis - GO, 75083-350",
+    "phone": "(62) 3098-6262",
+    "category": "Restaurante por quilo",
+    "rating": "4,5",
+    "reviews": "2.412"
+  },
+  {
+    "name": "Recanto dos Sabores Restaurante",
+    "address": "Zap (47) 9966, R. 8, 27 - 7330 - Vila Gï¿½is, Anï¿½polis - GO, 75120-280",
+    "phone": "(62) 3324-7273",
+    "category": "Restaurante por quilo",
+    "rating": "4,6",
+    "reviews": "1.454"
+  },
+  {
+    "name": "Bento Restaurante",
+    "address": "Zap (47) 9966, Av. Oscar Mohn, 250 - 7330 - Jundiaï¿½, Anï¿½polis - GO, 75110-400",
+    "phone": "(62) 3099-2318",
+    "category": "Restaurante",
+    "rating": "4,6",
+    "reviews": "584"
+  },
+  {
+    "name": "El Mare",
+    "address": "Av. Bernadino Silva, 68 - Jundiaï¿½, Anï¿½polis - GO, 75100-090",
+    "phone": "(62) 3701-1365",
+    "category": "Restaurante",
+    "rating": "4,7",
+    "reviews": "1.176"
+  },
+  {
+    "name": "Chï¿½o Goiano Restaurante",
+    "address": "R. Sen. Sï¿½crates Mardochen Diniz, 118 - St. Central, Anï¿½polis - GO, 75025-020",
+    "phone": "(62) 3321-2206",
+    "category": "Restaurante brasileiro",
+    "rating": "4,4",
+    "reviews": "2.093"
+  },
+  {
+    "name": "Lev Poke",
+    "address": "Av. Me. Maria dos Anjos, 1026 - Jundiaï¿½, Anï¿½polis - GO, 75110-430",
+    "phone": "(62) 99452-0120",
+    "category": "Restaurante havaiano",
+    "rating": "4,7",
+    "reviews": "72"
+  },
+  {
+    "name": "Guinza Yakissoba",
+    "address": "Av Dona Elvira Qd 2Y, R. L-21 - Vila Santa Maria de Nazareth, Anï¿½polis - GO, 75113-360",
+    "phone": "(62) 98155-9257",
+    "category": "Restaurante japonï¿½s especializado em carnes",
+    "rating": "4,8",
+    "reviews": "351"
+  },
+  {
+    "name": "Kenkyo Cozinha Oriental",
+    "address": "Av. Dom Prudï¿½ncio, 551 - Jundiaï¿½, Anï¿½polis - GO, 75113-080",
+    "phone": "(62) 99101-6804",
+    "category": "Restaurante japonï¿½s",
+    "rating": "4,9",
+    "reviews": "3.255"
+  },
+  {
+    "name": "Churrascaria Donis",
+    "address": "R. PB-08, Qd.43 Lt01 - Parque Brasilia, Anï¿½polis - GO, 75093-760",
+    "phone": "(62) 99374-5807",
+    "category": "Churrascaria",
+    "rating": "3,8",
+    "reviews": "6"
+  },
+  {
+    "name": "Chï¿½o Goiano Parque - Restaurante e Bar",
+    "address": "R. Odorico da Silva Leï¿½o, 36 - Jundiaï¿½, Anï¿½polis - GO, 75110-500",
+    "phone": "(62) 3706-2206",
+    "category": "Restaurante",
+    "rating": "4,4",
+    "reviews": "785"
+  },
+  {
+    "name": "Galpï¿½o Grill Restaurante",
+    "address": "R. Prof. Pedro Baio - Polocentro 1A Etapa, Anï¿½polis - GO, 75130-350",
+    "phone": "(62) 99494-8795",
+    "category": "Restaurante",
+    "rating": "4,7",
+    "reviews": "1.775"
+  },
+  {
+    "name": "Restaurante Bom Sabor",
+    "address": "Rua Daniela Q2, lote 1 - Jardim Ana Paula, Anï¿½polis - GO, 75125-170",
+    "phone": "(62) 99879-3600",
+    "category": "Restaurante",
+    "rating": "4,5",
+    "reviews": "433"
+  },
+  {
+    "name": "Meiji Restaurante",
+    "address": "Zap (47) 9966, Av. Sï¿½o Francisco de Assis, 740 - 7330 - Jundiaï¿½, Anï¿½polis - GO, 75110-810",
+    "phone": "(62) 3702-7030",
+    "category": "Restaurante japonï¿½s",
+    "rating": "4,7",
+    "reviews": "2.507"
+  },
+  {
+    "name": "Food Park Anï¿½polis",
+    "address": "Av. Santos Dumont, numero 309 - Jundiaï¿½, Anï¿½polis - GO, 75113-180",
+    "phone": "(62) 99391-5858",
+    "category": "Restaurante",
+    "rating": "4,7",
+    "reviews": "319"
+  },
+  {
+    "name": "Petiscaria do Ruinzim",
+    "address": "Av. Pinheiro Chagas, 837 - Jundiaï¿½, Anï¿½polis - GO, 75110-580",
+    "phone": "(62) 99403-4066",
+    "category": "Restaurante",
+    "rating": "4,4",
+    "reviews": "776"
+  },
+  {
+    "name": "Restaurante Tï¿½misa",
+    "address": "Av. Santos Dumont, 360 - Jundiaï¿½, Anï¿½polis - GO, 75113-180",
+    "phone": "(62) 99298-0505",
+    "category": "Restaurante",
+    "rating": "4,4",
+    "reviews": "184"
+  },
+  {
+    "name": "Marolo Restaurante e Rooftop",
+    "address": "R. Cel. Batista, 415 - St. Central, Anï¿½polis - GO, 75020-080",
+    "phone": "(62) 99641-1054",
+    "category": "Restaurante",
+    "rating": "4,6",
+    "reviews": "286"
+  },
+  {
+    "name": "Quintal e Brasa Cozinha de Fogo",
+    "address": "Av. Pinheiro Chagas Q 53, 856 - Jundiaï¿½, Anï¿½polis - GO, 75110-580",
+    "phone": null,
+    "category": "Churrascaria",
+    "rating": "3,7",
+    "reviews": "39"
+  },
+  {
+    "name": "Galpï¿½o Grill Restaurante",
+    "address": "R. Prof. Pedro Baio - Polocentro 1A Etapa, Anï¿½polis - GO, 75130-350",
+    "phone": "(62) 99494-8795",
+    "category": "Restaurante",
+    "rating": "4,7",
+    "reviews": "1.775"
+  },
+  {
+    "name": "Churrascaria Donis",
+    "address": "R. PB-08, Qd.43 Lt01 - Parque Brasilia, Anï¿½polis - GO, 75093-760",
+    "phone": "(62) 99374-5807",
+    "category": "Churrascaria",
+    "rating": "3,8",
+    "reviews": "6"
+  },
+  {
+    "name": "El Mare",
+    "address": "Av. Bernadino Silva, 68 - Jundiaï¿½, Anï¿½polis - GO, 75100-090",
+    "phone": "(62) 3701-1365",
+    "category": "Restaurante",
+    "rating": "4,7",
+    "reviews": "1.176"
+  },
+  {
+    "name": "Candeeiro Churrascaria e Pizzaria",
+    "address": "Avenida Brasil Sul, Lote 7 A - St. Sul Jamil Miguel, Anï¿½polis - GO, 75124-145",
+    "phone": "(62) 3314-0256",
+    "category": "Churrascaria",
+    "rating": "4,4",
+    "reviews": "4.682"
+  },
+  {
+    "name": "Casa Velha SteakBuguer",
+    "address": "R. Cel. Olï¿½mpio Barbosa de Melo, 10 - Jundiaï¿½, Anï¿½polis - GO, 75110-170",
+    "phone": "(62) 99528-6058",
+    "category": "Hamburgueria",
+    "rating": "4,7",
+    "reviews": "790"
+  },
+  {
+    "name": "Restaurante San Cor",
+    "address": "R. Quinze de Dezembro, 468 - St. Central, Anï¿½polis - GO, 75025-010",
+    "phone": "(62) 3311-6073",
+    "category": "Restaurante coreano",
+    "rating": "4,7",
+    "reviews": "337"
+  },
+  {
+    "name": "Restaurante Bom Sabor",
+    "address": "Rua Daniela Q2, lote 1 - Jardim Ana Paula, Anï¿½polis - GO, 75125-170",
+    "phone": "(62) 99879-3600",
+    "category": "Restaurante",
+    "rating": "4,5",
+    "reviews": "433"
+  },
+  {
+    "name": "La Trattoria Di Lana",
+    "address": "R. Conde Afonso Celso, 159 - St. Central, Anï¿½polis - GO, 75024-906",
+    "phone": "(62) 98409-0372",
+    "category": "Restaurante italiano",
+    "rating": "4,1",
+    "reviews": "192"
+  },
+  {
+    "name": "Duo Trattoria",
+    "address": "R. Benedito Borges de Almeida, 222 - Jundiaï¿½, Anï¿½polis - GO, 75110-070",
+    "phone": "(62) 98140-7319",
+    "category": "Restaurante italiano",
+    "rating": "4,1",
+    "reviews": "29"
+  },
+  {
+    "name": "Divina Cozinha e Feijoada",
+    "address": "Av PB01, Qd18 - Lt20 Lj02 - Parque Brasilia, Anï¿½polis - GO, 75093-698",
+    "phone": "(62) 99971-8443",
+    "category": "Restaurante",
+    "rating": "2,3",
+    "reviews": "6"
+  },
+  {
+    "name": "Rei do espeto Anï¿½polis",
+    "address": "Av. Ferroviï¿½ria, Qd23 - lt 01 Sala 6 - Santa clara, Anï¿½polis - GO, 75106-207",
+    "phone": "(62) 99433-1172",
+    "category": "Restaurante de churrasquinho",
+    "rating": "5,0",
+    "reviews": "3"
+  },
+  {
+    "name": "Cafï¿½ Paulista",
+    "address": "Av. Fernando Costa, 866 - Vila Jaiara, Anï¿½polis - GO, 75064-780",
+    "phone": "(62) 98586-0352",
+    "category": "Restaurante",
+    "rating": "5,0",
+    "reviews": "54"
+  }
+]
