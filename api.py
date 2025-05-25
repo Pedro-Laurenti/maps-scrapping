@@ -6,11 +6,8 @@ import json
 import os
 import sys
 import subprocess
-from typing import Optional, List, Dict, Any
-
-from src.utils import handle_error
-from src.crawler import scrape_google_maps
-from src.database import insert_busca, insert_leads, get_busca_by_id, get_leads_by_busca_id
+from typing import Optional, Dict, Any
+from src.database import insert_busca, insert_leads, get_leads_by_busca_id
 
 # Definição da aplicação FastAPI
 app = FastAPI(
