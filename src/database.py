@@ -15,7 +15,7 @@ async def get_connection():
     return await asyncpg.connect(**DB_CONFIG)
 
 async def insert_busca(regiao: str, tipo_empresa: str, palavras_chave: str, 
-                      qtd_max: int) -> int:
+                      qtd_max: int, status: str = "waiting") -> int:
     """
     Insere uma nova busca no banco de dados e retorna o ID gerado
     """
@@ -26,11 +26,11 @@ async def insert_busca(regiao: str, tipo_empresa: str, palavras_chave: str,
         
         # Insere a busca e retorna o ID gerado
         query = """
-            INSERT INTO buscas (campanha_id, regiao, tipo_empresa, palavras_chave, qtd_max, data_busca)
-            VALUES (NULL, $1, $2, $3, $4, NOW())
+            INSERT INTO buscas (campanha_id, regiao, tipo_empresa, palavras_chave, qtd_max, data_busca, status)
+            VALUES (NULL, $1, $2, $3, $4, NOW(), $5)
             RETURNING id
         """
-        busca_id = await conn.fetchval(query, regiao, tipo_empresa, palavras_array, qtd_max)
+        busca_id = await conn.fetchval(query, regiao, tipo_empresa, palavras_array, qtd_max, status)
         return busca_id
     finally:
         await conn.close()
@@ -132,3 +132,58 @@ async def get_leads_by_busca_id(busca_id: int) -> List[Dict[str, Any]]:
         return [dict(row) for row in rows]
     finally:
         await conn.close()
+
+async def update_busca_status(busca_id: int, status: str) -> bool:
+    """
+    Atualiza o status de uma busca
+    """
+    conn = await get_connection()
+    try:
+        query = """
+            UPDATE buscas SET status = $1 
+            WHERE id = $2
+        """
+        result = await conn.execute(query, status, busca_id)
+        return 'UPDATE' in result
+    finally:
+        await conn.close()
+
+async def get_next_busca_from_queue() -> Optional[Dict[str, Any]]:
+    """
+    Retorna a próxima busca na fila de processamento e atualiza seu status para "processing"
+    """
+    conn = await get_connection()
+    try:
+        # Usa transação para garantir que nenhum outro processo pegue a mesma busca
+        async with conn.transaction():
+            query = """
+                SELECT * FROM buscas 
+                WHERE status = 'waiting' 
+                ORDER BY id ASC 
+                LIMIT 1
+                FOR UPDATE SKIP LOCKED
+            """
+            row = await conn.fetchrow(query)
+            if row:
+                busca_dict = dict(row)
+                
+                # Atualiza o status para "processing"
+                update_query = """
+                    UPDATE buscas SET status = 'processing' 
+                    WHERE id = $1
+                """
+                await conn.execute(update_query, busca_dict['id'])
+                
+                return busca_dict
+        return None
+    finally:
+        await conn.close()
+
+async def insert_batch_leads(busca_id: int, leads_batch: List[Dict[str, Any]]) -> List[int]:
+    """
+    Insere um lote de leads no banco e retorna os IDs gerados
+    """
+    if not leads_batch:
+        return []
+    
+    return await insert_leads(busca_id, leads_batch)
