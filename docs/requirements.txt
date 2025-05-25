@@ -6,3 +6,5 @@ uvicorn==0.34.2
 pydantic==2.11.4
 requests==2.32.3
 colorama==0.4.6
+asyncpg==0.30.0
+pandas

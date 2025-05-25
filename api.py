@@ -10,6 +10,7 @@ from typing import Optional, List, Dict, Any
 
 from src.utils import handle_error
 from src.crawler import scrape_google_maps
+from src.database import insert_busca, insert_leads, get_busca_by_id, get_leads_by_busca_id
 
 # Definição da aplicação FastAPI
 app = FastAPI(
@@ -76,13 +77,21 @@ def run_scraper_process(task_id: str, params: dict):
                 
             # Limpa a saída para remover caracteres que podem causar problemas
             stdout_text = stdout_text.strip()
-            
-            # Tenta analisar como JSON
+              # Tenta analisar como JSON
             if stdout_text:
                 output_data = json.loads(stdout_text)
+                
+                # Obtém o ID da busca para salvar os leads
+                busca_id = tasks_results[task_id].get("busca_id")
+                
+                # Salva os leads no banco de dados
+                asyncio.run(insert_leads(busca_id, output_data))
+                
                 tasks_results[task_id] = {
                     "status": "completed",
-                    "results": output_data
+                    "results": output_data,
+                    "busca_id": busca_id,
+                    "leads_count": len(output_data)
                 }
             else:
                 tasks_results[task_id] = {
@@ -114,15 +123,24 @@ def run_scraper_process(task_id: str, params: dict):
 @app.post("/scrape")
 async def scrape(params: ScraperParams, background_tasks: BackgroundTasks):
     try:
-        # Gera um ID único para a tarefa
         import time
-        task_id = f"task_{hash(params.region + params.business_type + str(time.time()))}"
+        # Insere a busca no banco e usa o ID como identificador da tarefa
+        busca_id = await insert_busca(
+            regiao=params.region,
+            tipo_empresa=params.business_type,
+            palavras_chave=params.keywords,
+            qtd_max=params.max_results
+        )
+        
+        # Usa o ID da busca como parte do task_id
+        task_id = f"task_{busca_id}"
         
         # Inicializa o status da tarefa
         tasks_results[task_id] = {
             "status": "in_progress",
             "created_at": time.strftime("%Y-%m-%d %H:%M:%S"),
-            "params": params.dict()
+            "params": params.dict(),
+            "busca_id": busca_id
         }
         
         # Executa o scraper em segundo plano
@@ -134,7 +152,8 @@ async def scrape(params: ScraperParams, background_tasks: BackgroundTasks):
         
         return {
             "message": "Requisição aceita para processamento",
-            "task_id": task_id
+            "task_id": task_id,
+            "busca_id": busca_id
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -144,28 +163,50 @@ async def get_task_status(task_id: str):
     if task_id not in tasks_results:
         raise HTTPException(status_code=404, detail="Tarefa não encontrada")
     
-    task_data = tasks_results[task_id]
+    task_data = tasks_results[task_id].copy()
     
     # Adiciona informações adicionais para depuração
     if task_data["status"] == "error" and "stderr" not in task_data and "message" in task_data:
         # Conserva a mensagem original de erro
         task_data["error_details"] = task_data["message"]
     
+    # Adiciona informações do banco de dados se a tarefa estiver concluída
+    if task_data.get("status") == "completed" and "busca_id" in task_data:
+        busca_id = task_data["busca_id"]
+        try:
+            # Verifica se temos leads no banco para essa busca
+            leads = await get_leads_by_busca_id(busca_id)
+            task_data["db_leads_count"] = len(leads)
+        except Exception as e:
+            task_data["db_error"] = str(e)
+    
     return task_data
 
 # Endpoint para listar todas as tarefas
 @app.get("/tasks")
 async def list_tasks():
+    tasks_list = []
+    
+    for task_id, task_data in tasks_results.items():
+        task_info = {
+            "task_id": task_id,
+            "status": task_data["status"],
+            "created_at": task_data.get("created_at", "desconhecido")
+        }
+        
+        # Adiciona ID da busca se disponível
+        if "busca_id" in task_data:
+            task_info["busca_id"] = task_data["busca_id"]
+            
+            # Adiciona contagem de leads para tarefas concluídas
+            if task_data["status"] == "completed":
+                task_info["leads_count"] = task_data.get("leads_count", 0)
+                
+        tasks_list.append(task_info)
+    
     return {
-        "total_tasks": len(tasks_results),
-        "tasks": [
-            {
-                "task_id": task_id,
-                "status": task_data["status"],
-                "created_at": task_data.get("created_at", "desconhecido")
-            }
-            for task_id, task_data in tasks_results.items()
-        ]
+        "total_tasks": len(tasks_list),
+        "tasks": tasks_list
     }
 
 if __name__ == "__main__":
