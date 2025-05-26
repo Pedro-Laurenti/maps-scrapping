@@ -3,14 +3,15 @@ import sys
 import time
 from typing import Dict, Any, List, Optional
 import logging
+import traceback
 from src.database import get_next_busca_from_queue, update_busca_status, insert_batch_leads, get_connection
 from src.crawler import scrape_google_maps
 
 # Configurações
 BATCH_SIZE = 20  # Número máximo de resultados por batch
-MAX_CONCURRENT_TASKS = 2  # Número máximo de tarefas concorrentes
-QUEUE_CHECK_INTERVAL = 5  # Intervalo em segundos para verificar novas tarefas na fila
-QUEUE_UPDATE_INTERVAL = 30  # Intervalo em segundos para atualizar as posições da fila
+MAX_CONCURRENT_TASKS = 1  # Número máximo de tarefas concorrentes (mantemos em 1 para garantir ordem FIFO)
+QUEUE_CHECK_INTERVAL = 60  # Intervalo em segundos para verificar novas tarefas na fila (1 minuto)
+QUEUE_UPDATE_INTERVAL = 60  # Intervalo em segundos para atualizar as posições da fila (1 minuto)
 
 # Controle de tarefas em execução
 _running_tasks = set()
@@ -108,16 +109,22 @@ async def process_queue_item():
         if next_busca:
             busca_id = next_busca['id']
             
-            # Remove da fila de posições
-            if busca_id in _queue_positions:
-                del _queue_positions[busca_id]
+            # Log de início do processamento
+            logging.info(f"Iniciando processamento da busca ID {busca_id}: {next_busca['regiao']} - {next_busca['tipo_empresa']}")
+            
+            # Atualiza status no banco novamente para garantir que está como "processing"
+            await update_busca_status(busca_id, "processing")
             
             # Processa a busca em batches
             result = await process_busca_in_batches(next_busca)
             
+            # Log de finalização
+            logging.info(f"Busca ID {busca_id} finalizada com status: {result['status']}")
+            
             return result
-        
-        return None
+        else:
+            # Se não há buscas para processar, apenas retorna
+            return None
         
     except Exception as e:
         logging.error(f"Erro ao processar item da fila: {str(e)}")
@@ -135,17 +142,36 @@ async def update_queue_positions():
                 # Consulta o banco para obter todas as buscas em espera
                 conn = await get_connection()
                 try:
+                    # Busca também tarefas em processamento para mostrar status completo ao usuário
                     query = """
-                        SELECT id FROM buscas 
-                        WHERE status = 'waiting'
+                        SELECT id, status FROM buscas 
+                        WHERE status IN ('waiting', 'processing')
                         ORDER BY id ASC
                     """
                     rows = await conn.fetch(query)
                     
-                    # Atualiza as posições na fila
+                    # Reseta as posições
                     _queue_positions = {}
-                    for i, row in enumerate(rows):
-                        _queue_positions[row['id']] = i + 1
+                    
+                    # Primeiro adiciona os itens em processamento (com posição 0)
+                    processing_ids = []
+                    for row in rows:
+                        if row['status'] == 'processing':
+                            _queue_positions[row['id']] = 0  # 0 indica "em processamento"
+                            processing_ids.append(row['id'])
+                    
+                    # Depois adiciona os itens em espera (com posição sequencial)
+                    waiting_position = 1
+                    for row in rows:
+                        if row['status'] == 'waiting':
+                            _queue_positions[row['id']] = waiting_position
+                            waiting_position += 1
+                    
+                    # Log de diagnóstico para verificar a fila
+                    if rows:
+                        items_in_queue = len([r for r in rows if r['status'] == 'waiting'])
+                        items_processing = len(processing_ids)
+                        logging.info(f"Status da fila: {items_processing} processando, {items_in_queue} aguardando")
                         
                 finally:
                     await conn.close()
@@ -166,19 +192,41 @@ async def queue_worker():
     while _processing_flag:
         try:
             # Verifica se há capacidade para processar mais tarefas
-            if len(_running_tasks) < MAX_CONCURRENT_TASKS:
-                # Cria uma nova tarefa para processar um item da fila
-                task = asyncio.create_task(process_queue_item())
-                _running_tasks.add(task)
-                
-                # Remove a tarefa do conjunto quando terminar
-                task.add_done_callback(_running_tasks.discard)
+            current_running_count = len(_running_tasks)
+            
+            if current_running_count < MAX_CONCURRENT_TASKS:
+                # Verifica se há tarefas em espera no banco
+                conn = await get_connection()
+                try:
+                    query = """
+                        SELECT COUNT(*) FROM buscas 
+                        WHERE status = 'waiting'
+                    """
+                    waiting_count = await conn.fetchval(query)
+                    
+                    # Se existem tarefas esperando, força a criação de uma nova tarefa
+                    if waiting_count > 0:
+                        logging.info(f"Existem {waiting_count} tarefas na fila de espera. Iniciando processamento...")
+                        async with _queue_lock:  # Usa o lock para evitar condições de corrida
+                            # Cria uma nova tarefa para processar um item da fila
+                            task = asyncio.create_task(process_queue_item())
+                            _running_tasks.add(task)
+                            
+                            # Remove a tarefa do conjunto quando terminar
+                            task.add_done_callback(_running_tasks.discard)
+                finally:
+                    await conn.close()
+            else:
+                logging.info(f"Já existem {current_running_count} tarefas em execução. Aguardando...")
             
             # Aguarda um intervalo antes de verificar novamente
-            await asyncio.sleep(QUEUE_CHECK_INTERVAL)
+            # Intervalo mais curto se não tivermos nenhuma tarefa em execução
+            wait_time = QUEUE_CHECK_INTERVAL / 2 if current_running_count == 0 else QUEUE_CHECK_INTERVAL
+            await asyncio.sleep(wait_time)
             
         except Exception as e:
             logging.error(f"Erro no worker da fila: {str(e)}")
+            logging.error(traceback.format_exc())
             await asyncio.sleep(QUEUE_CHECK_INTERVAL)
 
 def start_queue_processor():
@@ -189,6 +237,15 @@ def start_queue_processor():
     
     if not _processing_flag:
         _processing_flag = True
+        
+        # Configura o logger para facilitar debug
+        logging.basicConfig(
+            level=logging.INFO,
+            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+            handlers=[logging.StreamHandler()]
+        )
+        
+        logging.info("Iniciando processador de fila...")
         
         # Usa a policy padrão do sistema para criar o loop
         if sys.platform == 'win32':
@@ -202,11 +259,17 @@ def start_queue_processor():
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
 
+        # Limpa tasks antigas se existirem
+        global _running_tasks
+        _running_tasks.clear()
+        
         # Inicia o worker em uma tarefa assíncrona
         loop.create_task(queue_worker())
         
         # Inicia o atualizador de posições na fila
         loop.create_task(update_queue_positions())
+        
+        logging.info(f"Processador de fila iniciado. Permitindo {MAX_CONCURRENT_TASKS} tarefas simultâneas.")
 
 def stop_queue_processor():
     """
@@ -214,6 +277,7 @@ def stop_queue_processor():
     """
     global _processing_flag
     _processing_flag = False
+    logging.info("Processador de fila desligado.")
 
 def get_queue_position(busca_id: int) -> Optional[int]:
     """

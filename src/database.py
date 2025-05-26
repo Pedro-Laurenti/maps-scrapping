@@ -151,11 +151,16 @@ async def update_busca_status(busca_id: int, status: str) -> bool:
 async def get_next_busca_from_queue() -> Optional[Dict[str, Any]]:
     """
     Retorna a próxima busca na fila de processamento e atualiza seu status para "processing"
+    
+    Esta função usa um bloqueio de linha (row lock) com FOR UPDATE SKIP LOCKED para garantir
+    que somente um worker pegue cada tarefa, mesmo em ambientes com múltiplos workers.
     """
     conn = await get_connection()
     try:
         # Usa transação para garantir que nenhum outro processo pegue a mesma busca
         async with conn.transaction():
+            # Seleciona a próxima tarefa em espera - não verifica mais se há tarefas em processamento
+            # para permitir que as tarefas sejam iniciadas automaticamente
             query = """
                 SELECT * FROM buscas 
                 WHERE status = 'waiting' 
@@ -174,7 +179,11 @@ async def get_next_busca_from_queue() -> Optional[Dict[str, Any]]:
                 """
                 await conn.execute(update_query, busca_dict['id'])
                 
+                import logging
+                logging.info(f"Iniciando processamento da busca {busca_dict['id']}: {busca_dict['regiao']} - {busca_dict['tipo_empresa']}")
+                
                 return busca_dict
+        
         return None
     finally:
         await conn.close()

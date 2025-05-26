@@ -159,11 +159,16 @@ async def get_task_status(task_id: str):
         except Exception as e:
             task_data["db_error"] = str(e)
       # Adiciona a posição na fila (queue_position) às informações da tarefa
-    if "busca_id" in task_data and task_data.get("status") == "queued":
+    if "busca_id" in task_data:
         busca_id = task_data["busca_id"]
         queue_position = get_queue_position(busca_id)
-        if queue_position:
-            task_data["queue_position"] = queue_position
+        if queue_position is not None:
+            # Se position for 0, significa que está em processamento
+            if queue_position == 0:
+                task_data["status"] = "in_progress"
+                task_data["queue_position"] = "processing"
+            else:
+                task_data["queue_position"] = queue_position
     
     return task_data
 
@@ -303,6 +308,7 @@ async def process_single_busca(busca: Dict[str, Any], task_id: str):
             if result["status"] == "completed":
                 tasks_results[task_id]["status"] = "completed"
                 tasks_results[task_id]["leads_count"] = result["total_leads"]
+                tasks_results[task_id]["message"] = f"Finalizado com sucesso. {result['total_leads']} leads encontrados."
             else:
                 tasks_results[task_id]["status"] = "error"
                 tasks_results[task_id]["error"] = result.get("error", "Erro desconhecido")
@@ -315,6 +321,11 @@ async def process_single_busca(busca: Dict[str, Any], task_id: str):
         # Atualiza o status no banco de dados
         if busca and "id" in busca:
             await update_busca_status(busca["id"], "error")
+            
+        # Log do erro para diagnóstico
+        import traceback
+        print(f"Erro ao processar busca {busca['id'] if busca and 'id' in busca else 'desconhecido'}:", file=sys.stderr)
+        traceback.print_exc()
 
 @app.post("/task/{busca_id}/process")
 async def process_task_now(busca_id: int, background_tasks: BackgroundTasks):
@@ -324,6 +335,14 @@ async def process_task_now(busca_id: int, background_tasks: BackgroundTasks):
         busca = await get_busca_by_id(busca_id)
         if not busca:
             raise HTTPException(status_code=404, detail="Busca não encontrada")
+        
+        # Verifica status atual - não podemos processar algo que já está em processamento
+        if busca.get("status") == "processing":
+            return {
+                "message": "A busca já está em processamento",
+                "busca_id": busca_id,
+                "status": "processing"
+            }
         
         # Cria o task_id correspondente
         task_id = f"task_{busca_id}"
@@ -352,6 +371,135 @@ async def process_task_now(busca_id: int, background_tasks: BackgroundTasks):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/queue/reset-stuck-tasks")
+async def reset_stuck_tasks():
+    """
+    Limpa tarefas que ficaram presas em status de processamento por muito tempo
+    """
+    try:
+        # Conecta ao banco de dados
+        conn = await get_connection()
+        try:
+            # Encontra buscas que estão presas no status "processing"
+            query = """
+                UPDATE buscas 
+                SET status = 'waiting' 
+                WHERE status = 'processing'
+                RETURNING id
+            """
+            rows = await conn.fetch(query)
+            
+            # Conta quantas tarefas foram resetadas
+            reset_count = len(rows)
+            
+            # Registra os IDs que foram resetados
+            reset_ids = [row['id'] for row in rows]
+            
+            return {
+                "status": "success", 
+                "reset_count": reset_count,
+                "reset_ids": reset_ids,
+                "message": f"{reset_count} tarefas presas foram resetadas para status 'waiting'"
+            }
+        finally:
+            await conn.close()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/queue/cancel-task/{busca_id}")
+async def cancel_task(busca_id: int):
+    """
+    Cancela uma tarefa específica, independente do seu status atual
+    """
+    try:
+        # Verifica se a busca existe
+        busca = await get_busca_by_id(busca_id)
+        if not busca:
+            raise HTTPException(status_code=404, detail="Busca não encontrada")
+        
+        # Atualiza para status de erro (ou poderia ser um status específico de "cancelado")
+        await update_busca_status(busca_id, "error")
+        
+        # Atualiza o status no dicionário de tarefas se existir
+        task_id = f"task_{busca_id}"
+        if task_id in tasks_results:
+            tasks_results[task_id]["status"] = "canceled"
+            tasks_results[task_id]["message"] = "Tarefa cancelada pelo usuário"
+        
+        return {
+            "status": "success",
+            "message": f"Busca ID {busca_id} foi cancelada com sucesso",
+            "busca_id": busca_id
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/queue/process-waiting")
+async def process_waiting_tasks():
+    """
+    Força o processamento imediato da próxima tarefa em espera
+    """
+    try:
+        # Conecta ao banco de dados para verificar se há tarefas em espera
+        conn = await get_connection()
+        try:
+            query = """
+                SELECT COUNT(*) FROM buscas 
+                WHERE status = 'waiting'
+            """
+            waiting_count = await conn.fetchval(query)
+            
+            if waiting_count == 0:
+                return {
+                    "status": "info",
+                    "message": "Não há tarefas em espera para processar"
+                }
+                
+            # Obtém a próxima tarefa na fila
+            next_query = """
+                SELECT id FROM buscas 
+                WHERE status = 'waiting'
+                ORDER BY id ASC
+                LIMIT 1
+            """
+            next_id = await conn.fetchval(next_query)
+            
+            if next_id:
+                # Atualiza o status para processing
+                await update_busca_status(next_id, "processing")
+                
+                # Obtém a busca completa
+                busca = await get_busca_by_id(next_id)
+                
+                # Inicia o processamento em background
+                task_id = f"task_{next_id}"
+                from fastapi import BackgroundTasks
+                background_tasks = BackgroundTasks()
+                background_tasks.add_task(process_single_busca, busca, task_id)
+                
+                # Força a execução imediata (isso é uma técnica para iniciar a task em background)
+                import asyncio
+                asyncio.create_task(background_tasks())
+                
+                return {
+                    "status": "success",
+                    "message": f"Iniciado processamento da tarefa ID {next_id}",
+                    "task_id": task_id
+                }
+            
+            return {
+                "status": "error",
+                "message": "Falha ao identificar a próxima tarefa na fila"
+            }
+        finally:
+            await conn.close()
+    except Exception as e:
+        import traceback
+        print(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 if __name__ == "__main__":
