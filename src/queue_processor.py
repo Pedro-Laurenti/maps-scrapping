@@ -99,7 +99,10 @@ async def process_busca_in_batches(busca_data: Dict[str, Any]) -> Dict[str, Any]
     
     # Verifica imediatamente se há mais tarefas para processar
     # Isso permite iniciar a próxima tarefa sem esperar o intervalo de verificação
-    asyncio.create_task(check_for_next_task())
+    task = asyncio.create_task(check_for_next_task())
+    
+    # Log informativo para ajudar no diagnóstico
+    logging.info(f"Busca ID {busca_id} completada. Status: {result['status']}. Verificando próxima tarefa na fila.")
     
     return result
 
@@ -211,6 +214,18 @@ async def queue_worker():
             # Verifica se há capacidade para processar mais tarefas
             current_running_count = len(_running_tasks)
             
+            # Diagnóstico adicional: verifica números no banco de dados
+            processing_count = await count_tasks_by_status("processing")
+            waiting_count = await count_tasks_by_status("waiting")
+            
+            if current_running_count == 0 and processing_count > 0:
+                logging.warning(f"Inconsistência detectada: {processing_count} tarefas marcadas como em processamento, mas não há tarefas em execução. Verificando o estado...")
+                
+                # Verifica se há trabalhos em inconsistência
+                if waiting_count > 0:
+                    logging.info(f"Iniciando verificação da próxima tarefa devido a inconsistência...")
+                    await check_for_next_task()
+            
             if current_running_count < MAX_CONCURRENT_TASKS:
                 # Usa a mesma função que verifica por próximas tarefas
                 # para garantir consistência de comportamento
@@ -219,8 +234,8 @@ async def queue_worker():
                 logging.info(f"Já existem {current_running_count} tarefas em execução. Aguardando...")
             
             # Aguarda um intervalo antes de verificar novamente
-            # Intervalo mais curto se não tivermos nenhuma tarefa em execução
-            wait_time = QUEUE_CHECK_INTERVAL / 2 if current_running_count == 0 else QUEUE_CHECK_INTERVAL
+            # Intervalo mais curto se não tivermos nenhuma tarefa em execução e houver tarefas pendentes
+            wait_time = QUEUE_CHECK_INTERVAL / 4 if (current_running_count == 0 and waiting_count > 0) else QUEUE_CHECK_INTERVAL
             await asyncio.sleep(wait_time)
             
         except Exception as e:
@@ -234,8 +249,7 @@ async def check_for_next_task():
     Esta função é chamada imediatamente após a conclusão de uma tarefa
     para garantir o processamento contínuo sem esperar o intervalo de verificação.
     """
-    try:
-        # Verifica se há itens em espera no banco de dados
+    try:            # Verifica se há itens em espera no banco de dados
         conn = await get_connection()
         try:
             query = """
@@ -251,10 +265,11 @@ async def check_for_next_task():
             """
             processing_count = await conn.fetchval(processing_query)
             
-            # Só inicia uma nova tarefa se houver tarefas em espera E 
-            # não houver nenhuma tarefa em processamento
-            if waiting_count > 0 and processing_count == 0:
-                logging.info(f"Tarefa concluída, encontradas {waiting_count} tarefas em espera. Iniciando a próxima imediatamente.")
+            # Se há tarefas em espera E o número de tarefas em execução
+            # é menor que o máximo permitido, inicia uma nova tarefa
+            current_running_count = len(_running_tasks)
+            if waiting_count > 0 and current_running_count < MAX_CONCURRENT_TASKS:
+                logging.info(f"Encontradas {waiting_count} tarefas em espera. Iniciando a próxima imediatamente.")
                 
                 # Cria uma nova tarefa para processar o próximo item da fila
                 task = asyncio.create_task(process_queue_item())
@@ -262,8 +277,12 @@ async def check_for_next_task():
                 # Remove a tarefa do conjunto quando terminar
                 task.add_done_callback(_running_tasks.discard)
             else:
-                if processing_count > 0:
-                    logging.info(f"Não iniciando nova tarefa: já existe {processing_count} em processamento.")
+                if current_running_count >= MAX_CONCURRENT_TASKS:
+                    logging.info(f"Não iniciando nova tarefa: já existem {current_running_count} tarefas em execução (máximo permitido).")
+                elif processing_count > 0 and current_running_count == 0:
+                    # Esta é uma condição de inconsistência - há tarefas marcadas como em processamento no banco
+                    # mas não há tarefas em execução localmente
+                    logging.warning(f"Inconsistência detectada: {processing_count} tarefas marcadas como em processamento no banco de dados, mas nenhuma tarefa em execução localmente.")
         finally:
             await conn.close()
     except Exception as e:
