@@ -329,7 +329,7 @@ async def process_single_busca(busca: Dict[str, Any], task_id: str):
         # Log do erro usando a função centralizada
         log_exception(f"Erro ao processar busca {busca['id'] if busca and 'id' in busca else 'desconhecido'}")
 
-@app.post("/task/{busca_id}/process")
+@app.post("/task/process/{busca_id}")
 async def process_task_now(busca_id: int, background_tasks: BackgroundTasks):
     """Processa uma tarefa específica imediatamente (fora da fila)"""
     try:
@@ -506,51 +506,6 @@ async def process_waiting_tasks():
         from src.utils import log_exception
         log_exception("Erro ao processar próxima tarefa em espera")
         raise HTTPException(status_code=500, detail=str(e))
-
-@app.get("/queue/force-process-next")
-async def force_process_next():
-    """
-    Endpoint para forçar o processamento do próximo item da fila,
-    útil para desbloquear a fila em situações de erro ou quando uma tarefa não inicia automaticamente.
-    """
-    try:
-        from src.utils import manual_process_next_task
-        from src.queue_processor import check_for_next_task
-        
-        # Força a verificação da próxima tarefa
-        await check_for_next_task()
-        
-        return {"status": "success", "message": "Próxima tarefa da fila iniciada"}
-    except Exception as e:
-        from src.utils import log_exception
-        log_exception("Erro ao forçar processamento da próxima tarefa")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.get("/queue/diagnostics")
-async def queue_diagnostics():
-    """
-    Retorna informações detalhadas de diagnóstico sobre o estado da fila
-    e tarefas em processamento.
-    """
-    try:
-        from src.utils import debug_queue_state, check_running_tasks
-        
-        # Obtém informações detalhadas da fila
-        queue_info = await debug_queue_state()
-        running_tasks_info = await check_running_tasks()
-        
-        from src.queue_processor import _running_tasks
-        
-        return {
-            "queue_info": queue_info,
-            "running_tasks": running_tasks_info,
-            "task_count": len(_running_tasks)
-        }
-    except Exception as e:
-        from src.utils import log_exception
-        log_exception("Erro ao obter diagnósticos da fila")
-        raise HTTPException(status_code=500, detail=str(e))
-
 
 if __name__ == "__main__":
     uvicorn.run("api:app", host="0.0.0.0", port=8000, reload=True)
