@@ -1,13 +1,19 @@
-import asyncpg
+from src.utils import with_connection, parse_float, parse_int, format_phone_number, db_transaction, log_info
 from typing import List, Dict, Any, Optional
+from dotenv import load_dotenv
+import asyncpg
+import logging
+import os
 
-# Configuração do banco de dados
+# Carrega variáveis do arquivo .env
+load_dotenv()
+
 DB_CONFIG = {
-    "host": "168.231.99.240",
-    "port": 6071,
-    "database": "privado",
-    "user": "admin",
-    "password": "789456123"
+    "host": os.getenv("DB_HOST"),
+    "port": int(os.getenv("DB_PORT", 5432)),
+    "database": os.getenv("DB_NAME"),
+    "user": os.getenv("DB_USER"),
+    "password": os.getenv("DB_PASSWORD")
 }
 
 async def get_connection():
@@ -15,80 +21,48 @@ async def get_connection():
     return await asyncpg.connect(**DB_CONFIG)
 
 async def insert_busca(regiao: str, tipo_empresa: str, palavras_chave: str, 
-                      qtd_max: int) -> int:
+                      qtd_max: int, status: str = "waiting") -> int:
     """
     Insere uma nova busca no banco de dados e retorna o ID gerado
     """
-    conn = await get_connection()
-    try:
+    
+    async def insert(conn):
         # Converte a string de palavras-chave em um array PostgreSQL
         palavras_array = palavras_chave.split() if palavras_chave else []
         
         # Insere a busca e retorna o ID gerado
         query = """
-            INSERT INTO buscas (campanha_id, regiao, tipo_empresa, palavras_chave, qtd_max, data_busca)
-            VALUES (NULL, $1, $2, $3, $4, NOW())
+            INSERT INTO buscas (campanha_id, regiao, tipo_empresa, palavras_chave, qtd_max, data_busca, status)
+            VALUES (NULL, $1, $2, $3, $4, NOW(), $5)
             RETURNING id
         """
-        busca_id = await conn.fetchval(query, regiao, tipo_empresa, palavras_array, qtd_max)
+        busca_id = await conn.fetchval(query, regiao, tipo_empresa, palavras_array, qtd_max, status)
+        
+        log_info(f"Nova busca inserida: ID {busca_id} - {regiao} - {tipo_empresa} (status: {status})")
         return busca_id
-    finally:
-        await conn.close()
+    
+    return await with_connection(insert)
 
 async def insert_leads(busca_id: int, leads: List[Dict[str, Any]]) -> List[int]:
     """
     Insere múltiplos leads no banco de dados e retorna os IDs gerados
     """
-    conn = await get_connection()
-    try:
+
+    
+    async def insert_lead_batch(conn, leads_data):
         # Prepara os valores para inserção em lote
         lead_ids = []
-        for lead in leads:
+        for lead in leads_data:
             query = """
                 INSERT INTO leads (busca_id, nome_empresa, nome_lead, telefone, 
                                   localizacao, avaliacao_media, reviews, tipo_empresa)
                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
                 RETURNING id
-            """            # Converte rating para float, garantindo que seja um número válido
-            rating = lead.get("rating")
-            try:
-                if rating is not None:
-                    # Se for string, substitui vírgula por ponto e converte para float
-                    if isinstance(rating, str):
-                        rating = float(rating.replace(",", "."))
-                    else:
-                        rating = float(rating)
-                else:
-                    rating = 0.0
-            except (ValueError, TypeError):
-                # Em caso de erro na conversão, usa o valor padrão
-                rating = 0.0
-                  # Converte reviews_count para inteiro
-            reviews_count = lead.get("reviews_count", 0)
-            try:
-                if reviews_count is not None:
-                    # Remove possíveis formatações como "1.234" ou "1,234"
-                    if isinstance(reviews_count, str):
-                        reviews_count = reviews_count.replace(".", "").replace(",", "")
-                    reviews_count = int(reviews_count)
-                else:
-                    reviews_count = 0
-            except (ValueError, TypeError):
-                reviews_count = 0
-              # Formata o número de telefone (remove espaços, parênteses e adiciona código BR 55)
-            phone = lead.get("phone", "")
-            if phone:
-                # Remove caracteres não numéricos
-                phone = ''.join(filter(str.isdigit, phone))
-                
-                # Se o número já começar com 55, mantém como está
-                if not phone.startswith('55'):
-                    # Se começar com 0, remove o zero inicial
-                    if phone.startswith('0'):
-                        phone = phone[1:]
-                    
-                    # Adiciona o código do Brasil (55)
-                    phone = '55' + phone
+            """
+            # Usa as funções utilitárias para conversão de tipos
+            rating = parse_float(lead.get("rating"), 0.0)
+            reviews_count = parse_int(lead.get("reviews_count"), 0)
+            phone = format_phone_number(lead.get("phone", ""))
             
             lead_id = await conn.fetchval(
                 query,
@@ -104,31 +78,106 @@ async def insert_leads(busca_id: int, leads: List[Dict[str, Any]]) -> List[int]:
             lead_ids.append(lead_id)
         
         return lead_ids
-    finally:
-        await conn.close()
+    
+    # Usa a função with_connection para gerenciar a conexão
+    return await with_connection(lambda conn: insert_lead_batch(conn, leads))
 
 async def get_busca_by_id(busca_id: int) -> Optional[Dict[str, Any]]:
     """
     Recupera uma busca pelo ID
     """
-    conn = await get_connection()
-    try:
+
+    
+    async def fetch_busca(conn):
         query = "SELECT * FROM buscas WHERE id = $1"
         row = await conn.fetchrow(query, busca_id)
         if row:
             return dict(row)
         return None
-    finally:
-        await conn.close()
+    
+    return await with_connection(fetch_busca)
 
 async def get_leads_by_busca_id(busca_id: int) -> List[Dict[str, Any]]:
     """
     Recupera todos os leads de uma determinada busca
     """
-    conn = await get_connection()
-    try:
+
+    
+    async def fetch_leads(conn):
         query = "SELECT * FROM leads WHERE busca_id = $1"
         rows = await conn.fetch(query, busca_id)
         return [dict(row) for row in rows]
-    finally:
-        await conn.close()
+    
+    return await with_connection(fetch_leads)
+
+async def update_busca_status(busca_id: int, status: str) -> bool:
+    """
+    Atualiza o status de uma busca
+    """
+    from src.utils import with_connection, log_info
+    
+    async def update_status(conn):
+        query = """
+            UPDATE buscas SET status = $1 
+            WHERE id = $2
+        """
+        result = await conn.execute(query, status, busca_id)
+        success = 'UPDATE' in result
+        if success:
+            log_info(f"Atualizado status da busca {busca_id} para '{status}'")
+        return success
+    
+    return await with_connection(update_status)
+
+async def get_next_busca_from_queue() -> Optional[Dict[str, Any]]:
+    """
+    Retorna a próxima busca na fila de processamento e atualiza seu status para "processing"
+    
+    Esta função usa um bloqueio de linha (row lock) com FOR UPDATE SKIP LOCKED para garantir
+    que somente um worker pegue cada tarefa, mesmo em ambientes com múltiplos workers.
+    """
+
+    
+    async def get_next_task(conn):
+        # Usa transação para garantir que nenhum outro processo pegue a mesma busca
+        async with db_transaction(conn):
+            # Seleciona a próxima tarefa em espera - não verifica mais se há tarefas em processamento
+            # para permitir que as tarefas sejam iniciadas automaticamente
+            query = """
+                SELECT * FROM buscas 
+                WHERE status = 'waiting' 
+                ORDER BY id ASC 
+                LIMIT 1
+                FOR UPDATE SKIP LOCKED
+            """
+            row = await conn.fetchrow(query)
+            if row:
+                busca_dict = dict(row)
+                
+                # Atualiza o status para "processing"
+                update_query = """
+                    UPDATE buscas SET status = 'processing' 
+                    WHERE id = $1
+                """
+                await conn.execute(update_query, busca_dict['id'])
+                
+                logging.info(f"Iniciando processamento da busca {busca_dict['id']}: {busca_dict['regiao']} - {busca_dict['tipo_empresa']}")
+                
+                return busca_dict
+        
+        return None
+    
+    return await with_connection(get_next_task)
+
+async def insert_batch_leads(busca_id: int, leads_batch: List[Dict[str, Any]]) -> List[int]:
+    """
+    Insere um lote de leads no banco e retorna os IDs gerados
+    """
+    
+    if not leads_batch:
+        return []
+    
+    lead_ids = await insert_leads(busca_id, leads_batch)
+    log_info(f"Inseridos {len(lead_ids)} leads para busca ID {busca_id}")
+    
+    return lead_ids
