@@ -13,6 +13,10 @@ services:
       - DB_NAME=${DB_NAME}
       - DB_USER=${DB_USER}
       - DB_PASSWORD=${DB_PASSWORD}
+      - BATCH_SIZE=${BATCH_SIZE}
+      - MAX_CONCURRENT_TASKS=${MAX_CONCURRENT_TASKS}
+      - QUEUE_CHECK_INTERVAL=${QUEUE_CHECK_INTERVAL}
+      - QUEUE_UPDATE_INTERVAL=${QUEUE_UPDATE_INTERVAL}
     volumes:
       - ./.env:/app/.env
     command: uvicorn api:app --host 0.0.0.0 --port 8000

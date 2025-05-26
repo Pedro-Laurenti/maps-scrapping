@@ -1,18 +1,21 @@
-import asyncio
-import sys
-import time
-import traceback
-from typing import Dict, Any, List, Optional
-import logging
-from src.utils import setup_logging, log_exception, with_connection, count_tasks_by_status
 from src.database import get_next_busca_from_queue, update_busca_status, insert_batch_leads, get_connection
+from src.utils import setup_logging, log_exception, with_connection, count_tasks_by_status
+from typing import Dict, Any, List, Optional
 from src.crawler import scrape_google_maps
+from dotenv import load_dotenv
+import traceback
+import asyncio
+import logging
+import sys
+import os
+
+load_dotenv()
 
 # Configurações
-BATCH_SIZE = 20  # Número máximo de resultados por batch
-MAX_CONCURRENT_TASKS = 1  # Número máximo de tarefas concorrentes (mantemos em 1 para garantir ordem FIFO)
-QUEUE_CHECK_INTERVAL = 60  # Intervalo em segundos para verificar novas tarefas na fila (1 minuto)
-QUEUE_UPDATE_INTERVAL = 60  # Intervalo em segundos para atualizar as posições da fila (1 minuto)
+BATCH_SIZE = int(os.getenv("BATCH_SIZE"))
+MAX_CONCURRENT_TASKS = int(os.getenv("MAX_CONCURRENT_TASKS"))
+QUEUE_CHECK_INTERVAL = int(os.getenv("QUEUE_CHECK_INTERVAL"))
+QUEUE_UPDATE_INTERVAL = int(os.getenv("QUEUE_UPDATE_INTERVAL"))
 
 # Controle de tarefas em execução
 _running_tasks = set()
