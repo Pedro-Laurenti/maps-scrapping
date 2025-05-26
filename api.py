@@ -221,9 +221,9 @@ async def stop_queue():
 async def queue_status():
     """Retorna o status atual da fila de processamento"""
     try:
-        # Consulta o banco para obter informações sobre a fila
-        conn = await get_connection()
-        try:
+        from src.utils import with_connection
+        
+        async def get_queue_stats(conn):
             stats = {}
             
             # Contagem de buscas por status
@@ -290,9 +290,11 @@ async def queue_status():
             stats["currently_processing"] = currently_processing
             
             return stats
-        finally:
-            await conn.close()
+        
+        return await with_connection(get_queue_stats)
     except Exception as e:
+        from src.utils import log_exception
+        log_exception("Erro ao obter status da fila")
         raise HTTPException(status_code=500, detail=str(e))
 
 async def process_single_busca(busca: Dict[str, Any], task_id: str):
@@ -313,6 +315,8 @@ async def process_single_busca(busca: Dict[str, Any], task_id: str):
                 tasks_results[task_id]["status"] = "error"
                 tasks_results[task_id]["error"] = result.get("error", "Erro desconhecido")
     except Exception as e:
+        from src.utils import log_exception
+        
         # Em caso de erro, atualiza o status
         if task_id in tasks_results:
             tasks_results[task_id]["status"] = "error"
@@ -322,10 +326,8 @@ async def process_single_busca(busca: Dict[str, Any], task_id: str):
         if busca and "id" in busca:
             await update_busca_status(busca["id"], "error")
             
-        # Log do erro para diagnóstico
-        import traceback
-        print(f"Erro ao processar busca {busca['id'] if busca and 'id' in busca else 'desconhecido'}:", file=sys.stderr)
-        traceback.print_exc()
+        # Log do erro usando a função centralizada
+        log_exception(f"Erro ao processar busca {busca['id'] if busca and 'id' in busca else 'desconhecido'}")
 
 @app.post("/task/{busca_id}/process")
 async def process_task_now(busca_id: int, background_tasks: BackgroundTasks):
@@ -377,9 +379,9 @@ async def reset_stuck_tasks():
     Limpa tarefas que ficaram presas em status de processamento por muito tempo
     """
     try:
-        # Conecta ao banco de dados
-        conn = await get_connection()
-        try:
+        from src.utils import with_connection
+        
+        async def reset_tasks(conn):
             # Encontra buscas que estão presas no status "processing"
             query = """
                 UPDATE buscas 
@@ -401,9 +403,11 @@ async def reset_stuck_tasks():
                 "reset_ids": reset_ids,
                 "message": f"{reset_count} tarefas presas foram resetadas para status 'waiting'"
             }
-        finally:
-            await conn.close()
+        
+        return await with_connection(reset_tasks)
     except Exception as e:
+        from src.utils import log_exception
+        log_exception("Erro ao resetar tarefas presas")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -443,21 +447,18 @@ async def process_waiting_tasks():
     Força o processamento imediato da próxima tarefa em espera
     """
     try:
-        # Conecta ao banco de dados para verificar se há tarefas em espera
-        conn = await get_connection()
-        try:
-            query = """
-                SELECT COUNT(*) FROM buscas 
-                WHERE status = 'waiting'
-            """
-            waiting_count = await conn.fetchval(query)
-            
-            if waiting_count == 0:
-                return {
-                    "status": "info",
-                    "message": "Não há tarefas em espera para processar"
-                }
-                
+        from src.utils import with_connection, count_tasks_by_status, log_exception
+        
+        # Verifica se há tarefas em espera
+        waiting_count = await count_tasks_by_status('waiting')
+        
+        if waiting_count == 0:
+            return {
+                "status": "info",
+                "message": "Não há tarefas em espera para processar"
+            }
+        
+        async def process_next_task(conn):
             # Obtém a próxima tarefa na fila
             next_query = """
                 SELECT id FROM buscas 
@@ -468,37 +469,86 @@ async def process_waiting_tasks():
             next_id = await conn.fetchval(next_query)
             
             if next_id:
-                # Atualiza o status para processing
-                await update_busca_status(next_id, "processing")
+                # Atualiza o status para processing diretamente pelo conn
+                update_query = "UPDATE buscas SET status = 'processing' WHERE id = $1"
+                await conn.execute(update_query, next_id)
                 
-                # Obtém a busca completa
-                busca = await get_busca_by_id(next_id)
-                
-                # Inicia o processamento em background
-                task_id = f"task_{next_id}"
-                from fastapi import BackgroundTasks
-                background_tasks = BackgroundTasks()
-                background_tasks.add_task(process_single_busca, busca, task_id)
-                
-                # Força a execução imediata (isso é uma técnica para iniciar a task em background)
-                import asyncio
-                asyncio.create_task(background_tasks())
-                
-                return {
-                    "status": "success",
-                    "message": f"Iniciado processamento da tarefa ID {next_id}",
-                    "task_id": task_id
-                }
+                return next_id
+            return None
+        
+        next_id = await with_connection(process_next_task)
+        
+        if next_id:
+            # Obtém a busca completa
+            busca = await get_busca_by_id(next_id)
+            
+            # Inicia o processamento em background
+            task_id = f"task_{next_id}"
+            from fastapi import BackgroundTasks
+            background_tasks = BackgroundTasks()
+            background_tasks.add_task(process_single_busca, busca, task_id)
+            
+            # Força a execução imediata (isso é uma técnica para iniciar a task em background)
+            import asyncio
+            asyncio.create_task(background_tasks())
             
             return {
-                "status": "error",
-                "message": "Falha ao identificar a próxima tarefa na fila"
+                "status": "success",
+                "message": f"Iniciado processamento da tarefa ID {next_id}",
+                "task_id": task_id
             }
-        finally:
-            await conn.close()
+        
+        return {
+            "status": "error",
+            "message": "Falha ao identificar a próxima tarefa na fila"
+        }
     except Exception as e:
-        import traceback
-        print(traceback.format_exc())
+        from src.utils import log_exception
+        log_exception("Erro ao processar próxima tarefa em espera")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/queue/force-process-next")
+async def force_process_next():
+    """
+    Endpoint para forçar o processamento do próximo item da fila,
+    útil para desbloquear a fila em situações de erro ou quando uma tarefa não inicia automaticamente.
+    """
+    try:
+        from src.utils import manual_process_next_task
+        from src.queue_processor import check_for_next_task
+        
+        # Força a verificação da próxima tarefa
+        await check_for_next_task()
+        
+        return {"status": "success", "message": "Próxima tarefa da fila iniciada"}
+    except Exception as e:
+        from src.utils import log_exception
+        log_exception("Erro ao forçar processamento da próxima tarefa")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/queue/diagnostics")
+async def queue_diagnostics():
+    """
+    Retorna informações detalhadas de diagnóstico sobre o estado da fila
+    e tarefas em processamento.
+    """
+    try:
+        from src.utils import debug_queue_state, check_running_tasks
+        
+        # Obtém informações detalhadas da fila
+        queue_info = await debug_queue_state()
+        running_tasks_info = await check_running_tasks()
+        
+        from src.queue_processor import _running_tasks
+        
+        return {
+            "queue_info": queue_info,
+            "running_tasks": running_tasks_info,
+            "task_count": len(_running_tasks)
+        }
+    except Exception as e:
+        from src.utils import log_exception
+        log_exception("Erro ao obter diagnósticos da fila")
         raise HTTPException(status_code=500, detail=str(e))
 
 
