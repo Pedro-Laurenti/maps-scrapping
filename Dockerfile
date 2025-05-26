@@ -8,6 +8,9 @@ COPY docs/requirements.txt .
 # Instalar dependências
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Instalar os navegadores necessários para o Playwright
+RUN playwright install chromium firefox webkit
+
 # Copiar o código-fonte
 COPY . .
 
