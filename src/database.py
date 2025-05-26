@@ -1,13 +1,19 @@
-import asyncpg
+from src.utils import with_connection, parse_float, parse_int, format_phone_number, db_transaction, log_info
 from typing import List, Dict, Any, Optional
+from dotenv import load_dotenv
+import asyncpg
+import logging
+import os
 
-# Configuração do banco de dados
+# Carrega variáveis do arquivo .env
+load_dotenv()
+
 DB_CONFIG = {
-    "host": "168.231.99.240",
-    "port": 6071,
-    "database": "privado",
-    "user": "admin",
-    "password": "789456123"
+    "host": os.getenv("DB_HOST"),
+    "port": int(os.getenv("DB_PORT", 5432)),
+    "database": os.getenv("DB_NAME"),
+    "user": os.getenv("DB_USER"),
+    "password": os.getenv("DB_PASSWORD")
 }
 
 async def get_connection():
@@ -19,7 +25,6 @@ async def insert_busca(regiao: str, tipo_empresa: str, palavras_chave: str,
     """
     Insere uma nova busca no banco de dados e retorna o ID gerado
     """
-    from src.utils import with_connection, log_info
     
     async def insert(conn):
         # Converte a string de palavras-chave em um array PostgreSQL
@@ -42,7 +47,7 @@ async def insert_leads(busca_id: int, leads: List[Dict[str, Any]]) -> List[int]:
     """
     Insere múltiplos leads no banco de dados e retorna os IDs gerados
     """
-    from src.utils import with_connection, parse_float, parse_int, format_phone_number
+
     
     async def insert_lead_batch(conn, leads_data):
         # Prepara os valores para inserção em lote
@@ -81,7 +86,7 @@ async def get_busca_by_id(busca_id: int) -> Optional[Dict[str, Any]]:
     """
     Recupera uma busca pelo ID
     """
-    from src.utils import with_connection
+
     
     async def fetch_busca(conn):
         query = "SELECT * FROM buscas WHERE id = $1"
@@ -96,7 +101,7 @@ async def get_leads_by_busca_id(busca_id: int) -> List[Dict[str, Any]]:
     """
     Recupera todos os leads de uma determinada busca
     """
-    from src.utils import with_connection
+
     
     async def fetch_leads(conn):
         query = "SELECT * FROM leads WHERE busca_id = $1"
@@ -131,8 +136,7 @@ async def get_next_busca_from_queue() -> Optional[Dict[str, Any]]:
     Esta função usa um bloqueio de linha (row lock) com FOR UPDATE SKIP LOCKED para garantir
     que somente um worker pegue cada tarefa, mesmo em ambientes com múltiplos workers.
     """
-    from src.utils import with_connection, db_transaction
-    import logging
+
     
     async def get_next_task(conn):
         # Usa transação para garantir que nenhum outro processo pegue a mesma busca
@@ -169,7 +173,6 @@ async def insert_batch_leads(busca_id: int, leads_batch: List[Dict[str, Any]]) -
     """
     Insere um lote de leads no banco e retorna os IDs gerados
     """
-    from src.utils import log_info
     
     if not leads_batch:
         return []
