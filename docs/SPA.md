@@ -47,6 +47,7 @@ CREATE TABLE leads (
     avaliacao_media REAL,
     reviews INTEGER,
     tipo_empresa TEXT,
+    data_criacao TIMESTAMP DEFAULT now()
 );
 
 CREATE TABLE mensagens (
@@ -61,7 +62,18 @@ CREATE TABLE mensagens (
 CREATE TABLE classificacoes (
     id SERIAL PRIMARY KEY,
     lead_id INTEGER REFERENCES leads(id),
-    categoria TEXT CHECK (categoria IN ('frio', 'respondeu', 'apresentacao')),
+    categoria TEXT,
     data_classificacao TIMESTAMP DEFAULT now()
 );
 ```
+
+Acionamento (nós mandamos mensagem) ok
+Interação (ele respondeu mensagem / ele entrou em contato) ok
+Classificação (true/false) ok
+
+---
+
+verificação de existencia (pula)
+verificação de numero (pula)
+reviews NULA
+segurança
