@@ -1,9 +1,9 @@
 version: '3.8'
 
 services:
-  maps-scraper:
+  maps-scraper-api:
     build: .
-    container_name: maps-scraper
+    container_name: maps-scraper-api
     restart: always
     ports:
       - "8000:8000"
@@ -18,5 +18,25 @@ services:
       - QUEUE_CHECK_INTERVAL=${QUEUE_CHECK_INTERVAL}
       - QUEUE_UPDATE_INTERVAL=${QUEUE_UPDATE_INTERVAL}
     volumes:
-      - ./.env:/app/.env
+      - .:/app
     command: uvicorn api:app --host 0.0.0.0 --port 8000
+    depends_on:
+      - maps-scraper-worker
+
+  maps-scraper-worker:
+    build: .
+    container_name: maps-scraper-worker
+    restart: always
+    environment:
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - BATCH_SIZE=${BATCH_SIZE}
+      - MAX_CONCURRENT_TASKS=${MAX_CONCURRENT_TASKS}
+      - QUEUE_CHECK_INTERVAL=${QUEUE_CHECK_INTERVAL}
+      - QUEUE_UPDATE_INTERVAL=${QUEUE_UPDATE_INTERVAL}
+    volumes:
+      - .:/app
+    command: python queue_worker.py

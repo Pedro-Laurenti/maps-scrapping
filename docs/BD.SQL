@@ -1,22 +1,3 @@
-# Sistema de Prospecção Automatizada
-
-## 📌 Considerações Técnicas
-
-- **Banco de dados**: PostgreSQL (armazenamento dos dados de leads, mensagens, classificações e histórico).
-- **Ferramentas utilizadas**: `n8n` para automações, `EvolutionAPI` para integração com whatsapp, `ollama` selfhosted para IA.
----
-
-# Banco de dados
-
-```
-host: 168.231.99.240
-port: 6071
-database: privado
-username: admin
-password: 789456123
-```
-
-```sql
 CREATE TABLE campanhas (
     id SERIAL PRIMARY KEY,
     nome TEXT NOT NULL,
@@ -24,7 +5,7 @@ CREATE TABLE campanhas (
     data_criacao TIMESTAMP DEFAULT now(),
     data_validade TIMESTAMP,
     data_processamento TIMESTAMP,
-    status TEXT CHECK (status IN ('ativa', 'concluida', 'cancelada', 'pendente', 'em_processamento')),
+    status TEXT CHECK (status IN ('ativa', 'concluida', 'cancelada', 'pausada', 'em_processamento')),
 );
 
 CREATE TABLE buscas (
@@ -35,6 +16,7 @@ CREATE TABLE buscas (
     palavras_chave TEXT[],
     qtd_max INTEGER,
     data_busca TIMESTAMP DEFAULT now()
+    status TEXT CHECK (status IN ('waiting', 'processing', 'error', 'concluido')),
 );
 
 CREATE TABLE leads (
@@ -65,15 +47,3 @@ CREATE TABLE classificacoes (
     categoria TEXT,
     data_classificacao TIMESTAMP DEFAULT now()
 );
-```
-
-Acionamento (nós mandamos mensagem) ok
-Interação (ele respondeu mensagem / ele entrou em contato) ok
-Classificação (true/false) ok
-
----
-
-verificação de existencia (pula)
-verificação de numero (pula)
-reviews NULA
-segurança
