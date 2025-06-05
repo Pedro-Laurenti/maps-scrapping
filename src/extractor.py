@@ -1,9 +1,12 @@
 import asyncio
 from typing import Dict, Any
 from playwright.async_api import Page
-from src.utils import log_error
-
+from src.utils import log_error, log_warning, log_debug, handle_exceptions
+@handle_exceptions(message="Erro ao extrair dados do estabelecimento", default_return=None)
 async def extract_business_data(page: Page, business_element) -> Dict[str, Any]:
+    """
+    Extrai dados de um estabelecimento comercial do Google Maps
+    """
     business_data = {
         "name": None,
         "address": None,
@@ -127,7 +130,3 @@ async def extract_business_data(page: Page, business_element) -> Dict[str, Any]:
     
     # Retorna os dados mesmo se apenas alguns campos forem preenchidos
     return business_data if business_data["name"] else None
-
-# Mantém a função original para compatibilidade
-async def extract_business_name(page: Page, business_element) -> Dict[str, Any]:
-    return await extract_business_data(page, business_element)
