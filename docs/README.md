@@ -103,12 +103,3 @@ docker-compose up -d
 ## Obtenção da API Key
 
 Quando a API é iniciada pela primeira vez, uma API Key padrão é criada automaticamente e exibida no log de inicialização. **Guarde esta chave em um local seguro**, pois ela não será exibida novamente.
-
-
---- TODO
-
-segurança OK
-verificação de existencia (pula) 
-verificação de numero (pula)
-reviews NULA
-

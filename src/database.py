@@ -171,3 +171,23 @@ async def insert_batch_leads(busca_id: int, leads_batch: List[Dict[str, Any]]) -
     log_info(f"Inseridos {len(lead_ids)} leads para busca ID {busca_id}")
     
     return lead_ids
+
+@handle_exceptions(message="Erro ao verificar telefone existente", default_return=False)
+async def check_phone_exists(phone: str) -> bool:
+    """
+    Verifica se um número de telefone já existe no banco de dados
+    """
+    if not phone:
+        return False
+        
+    # Formata o telefone para garantir o mesmo padrão
+    formatted_phone = format_phone_number(phone)
+    if not formatted_phone:
+        return False
+    
+    async def check_exists(conn):
+        query = "SELECT COUNT(*) FROM leads WHERE telefone = $1"
+        count = await conn.fetchval(query, formatted_phone)
+        return count > 0
+    
+    return await with_connection(check_exists)

@@ -248,13 +248,13 @@ def log_debug(message: str) -> None:
     """
     Registra uma mensagem de debug no log
     """
-    logging.debug(message)
+    logging.warning(message)
 
 def log_info(message: str) -> None:
     """
     Registra uma informação no log
     """
-    logging.info(message)
+    logging.warning(message)
 
 def log_warning(message: str) -> None:
     """
