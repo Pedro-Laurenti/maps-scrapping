@@ -47,3 +47,15 @@ CREATE TABLE classificacoes (
     categoria TEXT,
     data_classificacao TIMESTAMP DEFAULT now()
 );
+
+CREATE TABLE api_keys (
+    id SERIAL PRIMARY KEY,
+    key_hash TEXT NOT NULL UNIQUE,
+    name TEXT NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    expires_at TIMESTAMP,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    last_used_at TIMESTAMP,
+    use_count INTEGER NOT NULL DEFAULT 0,
+    allowed_ips TEXT[]
+)

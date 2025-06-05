@@ -1,25 +1,10 @@
-from src.utils import with_connection, parse_float, parse_int, format_phone_number, db_transaction, log_info
+from src.utils import (
+    with_connection, parse_float, parse_int, format_phone_number, db_transaction, 
+    log_info, log_exception, log_warning, get_connection, handle_exceptions
+)
 from typing import List, Dict, Any, Optional
-from dotenv import load_dotenv
-import asyncpg
-import logging
-import os
 
-# Carrega variáveis do arquivo .env
-load_dotenv()
-
-DB_CONFIG = {
-    "host": os.getenv("DB_HOST"),
-    "port": int(os.getenv("DB_PORT", 5432)),
-    "database": os.getenv("DB_NAME"),
-    "user": os.getenv("DB_USER"),
-    "password": os.getenv("DB_PASSWORD")
-}
-
-async def get_connection():
-    """Estabelece conexão com o banco de dados PostgreSQL"""
-    return await asyncpg.connect(**DB_CONFIG)
-
+@handle_exceptions(message="Erro ao inserir busca no banco de dados", default_return=None)
 async def insert_busca(regiao: str, tipo_empresa: str, palavras_chave: str, 
                       qtd_max: int, status: str = "waiting") -> int:
     """
@@ -43,6 +28,7 @@ async def insert_busca(regiao: str, tipo_empresa: str, palavras_chave: str,
     
     return await with_connection(insert)
 
+@handle_exceptions(message="Erro ao inserir leads no banco de dados", default_return=[])
 async def insert_leads(busca_id: int, leads: List[Dict[str, Any]]) -> List[int]:
     """
     Insere múltiplos leads no banco de dados e retorna os IDs gerados
@@ -82,6 +68,7 @@ async def insert_leads(busca_id: int, leads: List[Dict[str, Any]]) -> List[int]:
     # Usa a função with_connection para gerenciar a conexão
     return await with_connection(lambda conn: insert_lead_batch(conn, leads))
 
+@handle_exceptions(message="Erro ao buscar dados da busca", default_return=None)
 async def get_busca_by_id(busca_id: int) -> Optional[Dict[str, Any]]:
     """
     Recupera uma busca pelo ID
@@ -97,6 +84,7 @@ async def get_busca_by_id(busca_id: int) -> Optional[Dict[str, Any]]:
     
     return await with_connection(fetch_busca)
 
+@handle_exceptions(message="Erro ao buscar leads", default_return=[])
 async def get_leads_by_busca_id(busca_id: int) -> List[Dict[str, Any]]:
     """
     Recupera todos os leads de uma determinada busca
@@ -110,11 +98,11 @@ async def get_leads_by_busca_id(busca_id: int) -> List[Dict[str, Any]]:
     
     return await with_connection(fetch_leads)
 
+@handle_exceptions(message="Erro ao atualizar status da busca", default_return=False)
 async def update_busca_status(busca_id: int, status: str) -> bool:
     """
     Atualiza o status de uma busca
     """
-    from src.utils import with_connection, log_info
     
     async def update_status(conn):
         query = """
@@ -129,6 +117,7 @@ async def update_busca_status(busca_id: int, status: str) -> bool:
     
     return await with_connection(update_status)
 
+@handle_exceptions(message="Erro ao obter próxima busca da fila", default_return=None)
 async def get_next_busca_from_queue() -> Optional[Dict[str, Any]]:
     """
     Retorna a próxima busca na fila de processamento e atualiza seu status para "processing"
@@ -161,7 +150,7 @@ async def get_next_busca_from_queue() -> Optional[Dict[str, Any]]:
                 """
                 await conn.execute(update_query, busca_dict['id'])
                 
-                logging.info(f"Iniciando processamento da busca {busca_dict['id']}: {busca_dict['regiao']} - {busca_dict['tipo_empresa']}")
+                log_info(f"Iniciando processamento da busca {busca_dict['id']}: {busca_dict['regiao']} - {busca_dict['tipo_empresa']}")
                 
                 return busca_dict
         
@@ -169,6 +158,7 @@ async def get_next_busca_from_queue() -> Optional[Dict[str, Any]]:
     
     return await with_connection(get_next_task)
 
+@handle_exceptions(message="Erro ao inserir lote de leads", default_return=[])
 async def insert_batch_leads(busca_id: int, leads_batch: List[Dict[str, Any]]) -> List[int]:
     """
     Insere um lote de leads no banco e retorna os IDs gerados

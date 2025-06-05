@@ -10,30 +10,20 @@ from src.queue_processor import (
     start_queue_processor
 )
 from src.security import (
-    get_api_key, create_api_key_table, generate_api_key, 
+    get_api_key, generate_api_key, 
     revoke_api_key, get_api_keys
 )
+from contextlib import asynccontextmanager
+import os
+from dotenv import load_dotenv
 
-app = FastAPI(
-    title="Google Maps Scraper API",
-    description="API para buscar informações de negócios no Google Maps",
-    version="1.0.0"
-)
-
-# Inicializa a tabela de API keys ao iniciar o aplicativo
-@app.on_event("startup")
-async def startup():
-    # Cria a tabela de API Keys se não existir
-    await create_api_key_table()
-    
+@asynccontextmanager
+async def lifespan(app: FastAPI):
     # Verifica se existe alguma API Key ativa
     keys = await get_api_keys(active_only=True)
     
     # Se não existir nenhuma API Key ativa, cria uma padrão
     if not keys:
-        import os
-        from dotenv import load_dotenv
-        
         # Recarrega as variáveis de ambiente para garantir que temos os valores mais recentes
         load_dotenv()
         
@@ -59,6 +49,14 @@ async def startup():
         print(f" Criada em: {key_info['created_at']}")
         print(f" Expira em: {key_info['expires_at']}")
         print(f"{'='*60}\n")
+    yield
+
+app = FastAPI(
+    title="Google Maps Scraper API",
+    description="API para buscar informações de negócios no Google Maps",
+    version="1.0.0",
+    lifespan=lifespan
+)
 
 class ScraperParams(BaseModel):
     region: str

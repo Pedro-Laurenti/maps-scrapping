@@ -86,7 +86,7 @@ docker-compose build --no-cache
 docker-compose up -d
 
 # Verifique os logs para confirmar que está funcionando corretamente
-docker-compose logs -f maps-scraper-worker
+docker-compose logs -f
 ```
 
 Para aplicar apenas as alterações do arquivo .env sem reiniciar completamente:

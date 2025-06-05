@@ -2,108 +2,107 @@ import asyncio
 from typing import Dict, List, Any
 from playwright.async_api import async_playwright, Page
 
-from src.utils import log_error, normalize_url_string
+from src.utils import log_error, log_warning, log_info, log_debug, normalize_url_string, handle_exceptions
 from src.extractor import extract_business_data
 
+@handle_exceptions(message="Erro durante o scroll para carregar mais resultados", default_return=None)
 async def scroll_to_load_more(page: Page, max_scrolls: int = 5):
-    try:
-        scroll_containers = [
-            'div[role="feed"]',
-            'div.m6QErb[role="region"]',
-            'div.m6QErb-qJTHM-haAclf'
-        ]
+    # Removido bloco try/except redundante pois já temos o decorator @handle_exceptions
+    scroll_containers = [
+        'div[role="feed"]',
+        'div.m6QErb[role="region"]',
+        'div.m6QErb-qJTHM-haAclf'
+    ]
+    
+    container_selector = None
+    for selector in scroll_containers:
+        container = await page.query_selector(selector)
+        if container:
+            container_selector = selector
+            break
+    
+    if not container_selector:
+        log_warning("Não foi possível encontrar o contêiner de resultados para scroll")
+        return
+    
+    initial_count = await page.evaluate(f'''
+        () => {{
+            const container = document.querySelector('{container_selector}');
+            return container ? container.querySelectorAll('a[href^="https://www.google.com/maps/place"]').length : 0;
+        }}
+    ''')
+    
+    log_info(f"Contagem inicial: {initial_count} elementos")
+    
+    total_scrolls = 0
+    previous_count = initial_count
+    no_change_count = 0
+    
+    for i in range(max_scrolls):
+        # Executa o scroll
+        await page.evaluate(f'''
+            () => {{
+                const container = document.querySelector('{container_selector}');
+                if (container) {{
+                    container.scrollTop = container.scrollHeight;
+                    return true;
+                }}
+                return false;
+            }}
+        ''')
         
-        container_selector = None
-        for selector in scroll_containers:
-            container = await page.query_selector(selector)
-            if container:
-                container_selector = selector
-                break
+        # Aguarda um pouco para carregar
+        await asyncio.sleep(2)
         
-        if not container_selector:
-            log_error("Não foi possível encontrar o contêiner de resultados para scroll")
-            return
+        # Para grandes volumes, ocasionalmente faça clique em "Mostrar mais resultados"
+        if i % 3 == 0:
+            try:
+                # Tenta clicar em diferentes botões que podem carregar mais resultados
+                for button_selector in [
+                    'button[jsaction*="load-more"]', 
+                    'button:has-text("Mostrar mais")', 
+                    'button:has-text("Ver mais")',
+                    'button:has-text("Load more")',
+                    'button[aria-label*="results"]'
+                ]:
+                    load_more_button = await page.query_selector(button_selector)
+                    if load_more_button:
+                        await load_more_button.click()
+                        await asyncio.sleep(3)  # Aguarda mais tempo após clicar
+                        break
+            except Exception as e:
+                log_warning(f"Erro ao tentar clicar em 'Mostrar mais': {str(e)}")
         
-        initial_count = await page.evaluate(f'''
+        # Verifica se carregou mais itens
+        new_count = await page.evaluate(f'''
             () => {{
                 const container = document.querySelector('{container_selector}');
                 return container ? container.querySelectorAll('a[href^="https://www.google.com/maps/place"]').length : 0;
             }}
         ''')
         
-        log_error(f"Contagem inicial: {initial_count} elementos")
+        log_info(f"Scroll {i+1}: {new_count} elementos encontrados")
         
-        total_scrolls = 0
-        previous_count = initial_count
-        no_change_count = 0
-        
-        for i in range(max_scrolls):
-            # Executa o scroll
-            await page.evaluate(f'''
-                () => {{
-                    const container = document.querySelector('{container_selector}');
-                    if (container) {{
-                        container.scrollTop = container.scrollHeight;
-                        return true;
-                    }}
-                    return false;
-                }}
-            ''')
-            
-            # Aguarda um pouco para carregar
-            await asyncio.sleep(2)
-            
-            # Para grandes volumes, ocasionalmente faça clique em "Mostrar mais resultados"
-            if i % 3 == 0:
-                try:
-                    # Tenta clicar em diferentes botões que podem carregar mais resultados
-                    for button_selector in [
-                        'button[jsaction*="load-more"]', 
-                        'button:has-text("Mostrar mais")', 
-                        'button:has-text("Ver mais")',
-                        'button:has-text("Load more")',
-                        'button[aria-label*="results"]'
-                    ]:
-                        load_more_button = await page.query_selector(button_selector)
-                        if load_more_button:
-                            await load_more_button.click()
-                            await asyncio.sleep(3)  # Aguarda mais tempo após clicar
-                            break
-                except Exception as e:
-                    log_error(f"Erro ao tentar clicar em 'Mostrar mais': {str(e)}")
-            
-            # Verifica se carregou mais itens
-            new_count = await page.evaluate(f'''
-                () => {{
-                    const container = document.querySelector('{container_selector}');
-                    return container ? container.querySelectorAll('a[href^="https://www.google.com/maps/place"]').length : 0;
-                }}
-            ''')
-            
-            log_error(f"Scroll {i+1}: {new_count} elementos encontrados")
-            
-            # Se não houver mudança em 3 tentativas consecutivas, podemos parar
-            if new_count <= previous_count:
-                no_change_count += 1
-                if no_change_count >= 3:
-                    log_error("Nenhum novo item carregado após 3 tentativas, parando o scroll")
-                    break
-            else:
-                no_change_count = 0  # Reseta o contador de "sem mudança"
-                
-            total_scrolls = i + 1
-            previous_count = new_count
-            
-            # Se tivermos carregado muitos itens, podemos parar
-            if new_count >= 100:
-                log_error("Atingido um grande número de itens, parando o scroll")
+        # Se não houver mudança em 3 tentativas consecutivas, podemos parar
+        if new_count <= previous_count:
+            no_change_count += 1
+            if no_change_count >= 3:
+                log_info("Nenhum novo item carregado após 3 tentativas, parando o scroll")
                 break
-                
-        log_error(f"{total_scrolls} rolagens: {previous_count} elementos encontrados")
-    
-    except Exception as e:
-        log_error(f"Erro durante o scroll: {str(e)}")
+        else:
+            no_change_count = 0  # Reseta o contador de "sem mudança"
+            
+        total_scrolls = i + 1
+        previous_count = new_count
+        
+        # Se tivermos carregado muitos itens, podemos parar
+        if new_count >= 100:
+            log_info("Atingido um grande número de itens, parando o scroll")
+            break
+            
+    log_info(f"{total_scrolls} rolagens: {previous_count} elementos encontrados")
 
+@handle_exceptions(message="Erro durante a extração de dados do Google Maps", default_return=[])
 async def scrape_google_maps(region: str, business_type: str, max_results: int = 10, keywords: str = None, batch_size: int = None, offset: int = 0) -> List[Dict[str, Any]]:
     results = []
     
@@ -113,7 +112,7 @@ async def scrape_google_maps(region: str, business_type: str, max_results: int =
     except:
         region_display = region
         
-    log_error(f"Iniciando busca por '{business_type}' em '{region_display}'...")
+    log_info(f"Iniciando busca por '{business_type}' em '{region_display}'...")
     
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
@@ -130,7 +129,7 @@ async def scrape_google_maps(region: str, business_type: str, max_results: int =
         encoded_query = normalize_url_string(search_query)
         url = f"https://www.google.com/maps/search/{encoded_query}"
         
-        log_error(f"Navegando: {url}")
+        log_info(f"Navegando: {url}")
         try:
             await page.goto(url, timeout=120000)
             
@@ -139,9 +138,9 @@ async def scrape_google_maps(region: str, business_type: str, max_results: int =
                     'div[role="feed"], a[href^="https://www.google.com/maps/place"], h1', 
                     timeout=30000
                 )
-                log_error("Elementos carregados")
+                log_debug("Elementos carregados")
             except Exception as e:
-                log_error(f"Aviso: Não conseguiu detectar elementos específicos: {str(e)}")
+                log_warning(f"Não conseguiu detectar elementos específicos: {str(e)}")
                 await asyncio.sleep(5)
                 
             await asyncio.sleep(3)
@@ -158,19 +157,19 @@ async def scrape_google_maps(region: str, business_type: str, max_results: int =
             
         await scroll_to_load_more(page, max_scrolls=max_scrolls)
         
-        log_error("\nExtraindo dados dos estabelecimentos...")
+        log_info("Extraindo dados dos estabelecimentos...")
         
         try:
             business_elements = await page.query_selector_all('a.hfpxzc[aria-label]')
-            log_error(f"Encontrados {len(business_elements)} estabelecimentos")
+            log_info(f"Encontrados {len(business_elements)} estabelecimentos")
             
             if not business_elements or len(business_elements) == 0:
                 business_elements = await page.query_selector_all('a[href^="https://www.google.com/maps/place"][aria-label]')
-                log_error(f"Encontrados {len(business_elements)} elementos de negócios com aria-label (busca alternativa)")
+                log_info(f"Encontrados {len(business_elements)} elementos de negócios com aria-label (busca alternativa)")
             
             if not business_elements or len(business_elements) == 0:
                 business_elements = await page.query_selector_all('a[href^="https://www.google.com/maps/place"]')
-                log_error(f"Encontrados {len(business_elements)} elementos pelo seletor de links")
+                log_info(f"Encontrados {len(business_elements)} elementos pelo seletor de links")
             
             # Se tivermos um offset, pule os primeiros elementos
             if offset > 0:
@@ -194,9 +193,9 @@ async def scrape_google_maps(region: str, business_type: str, max_results: int =
                         if count % 10 == 0:
                             await asyncio.sleep(1)
                 except Exception as e:
-                    log_error(f"Erro ao processar elemento: {str(e)}")
+                    log_warning(f"Erro ao processar elemento: {str(e)}")
             
-            log_error(f"\nTotal de {len(results)} estabelecimentos extraídos.")
+            log_info(f"Total de {len(results)} estabelecimentos extraídos.")
             
         except Exception as e:
             log_error(f"Erro durante a extração: {str(e)}")
