@@ -3,8 +3,6 @@ services:
     build: .
     # container_name removido para evitar conflitos
     restart: always
-    ports:
-      - "${API_PORT:-8000}:8000"  # Porta configurável via variável de ambiente
     env_file:
       - .env
     environment:
