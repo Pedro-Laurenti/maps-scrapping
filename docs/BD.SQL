@@ -21,10 +21,10 @@ CREATE TABLE buscas (
 
 CREATE TABLE leads (
     id SERIAL PRIMARY KEY,
-    busca_id INTEGER REFERENCES buscas(id)
+    busca_id INTEGER REFERENCES buscas(id),
     nome_empresa TEXT,
     nome_lead TEXT,
-    telefone TEXT,
+    telefone TEXT UNIQUE,
     localizacao TEXT,
     avaliacao_media REAL,
     reviews INTEGER,

@@ -1,3 +1,4 @@
+import asyncpg
 from src.utils import (
     with_connection, parse_float, parse_int, format_phone_number, db_transaction, 
     log_info, log_exception, log_warning, get_connection, handle_exceptions
@@ -38,31 +39,44 @@ async def insert_leads(busca_id: int, leads: List[Dict[str, Any]]) -> List[int]:
     async def insert_lead_batch(conn, leads_data):
         # Prepara os valores para inserção em lote
         lead_ids = []
+        duplicated_phones = 0
+        
         for lead in leads_data:
-            query = """
-                INSERT INTO leads (busca_id, nome_empresa, nome_lead, telefone, 
-                                  localizacao, avaliacao_media, reviews, tipo_empresa)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-                RETURNING id
-            """
             # Usa as funções utilitárias para conversão de tipos
             rating = parse_float(lead.get("rating"), 0.0)
             reviews_count = parse_int(lead.get("reviews_count"), 0)
             phone = format_phone_number(lead.get("phone", ""))
             
-            lead_id = await conn.fetchval(
-                query,
-                busca_id,
-                lead.get("name", ""),
-                "",  # nome_lead (não temos esse dado do scraping)
-                phone,  # telefone formatado
-                lead.get("address", ""),
-                rating,  # avaliação média como float
-                reviews_count,  # número de reviews como inteiro
-                lead.get("business_type", "")
-            )
-            lead_ids.append(lead_id)
+            # Tentativa de inserir o lead, tratando possíveis violações de unicidade
+            try:
+                query = """
+                    INSERT INTO leads (busca_id, nome_empresa, nome_lead, telefone, 
+                                      localizacao, avaliacao_media, reviews, tipo_empresa)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                    RETURNING id
+                """
+                
+                lead_id = await conn.fetchval(
+                    query,
+                    busca_id,
+                    lead.get("name", ""),
+                    "",  # nome_lead (não temos esse dado do scraping)
+                    phone,  # telefone formatado
+                    lead.get("address", ""),
+                    rating,  # avaliação média como float
+                    reviews_count,  # número de reviews como inteiro
+                    lead.get("business_type", "")
+                )
+                lead_ids.append(lead_id)
+            except asyncpg.UniqueViolationError:
+                # Telefone duplicado, apenas loga e continua
+                duplicated_phones += 1
+                log_info(f"Telefone duplicado pulado: {phone}")
+                continue
         
+        if duplicated_phones > 0:
+            log_info(f"Total de {duplicated_phones} telefones duplicados ignorados")
+            
         return lead_ids
     
     # Usa a função with_connection para gerenciar a conexão
@@ -168,7 +182,7 @@ async def insert_batch_leads(busca_id: int, leads_batch: List[Dict[str, Any]]) -
         return []
     
     lead_ids = await insert_leads(busca_id, leads_batch)
-    log_info(f"Inseridos {len(lead_ids)} leads para busca ID {busca_id}")
+    log_info(f"Inseridos {len(lead_ids)} leads para busca ID {busca_id} (de {len(leads_batch)} tentados)")
     
     return lead_ids
 
