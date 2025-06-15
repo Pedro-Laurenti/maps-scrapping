@@ -1,28 +1,15 @@
--- Tabela de clientes (tenants) para suportar multi-tenancy
-CREATE TABLE clientes (
-    id SERIAL PRIMARY KEY,
-    nome TEXT NOT NULL,
-    email TEXT UNIQUE NOT NULL,
-    cnpj TEXT UNIQUE,
-    data_criacao TIMESTAMP DEFAULT now(),
-    status TEXT CHECK (status IN ('ativo', 'inativo', 'suspenso')),
-    configuracoes JSONB -- para armazenar configurações específicas do cliente
-);
-
 CREATE TABLE campanhas (
     id SERIAL PRIMARY KEY,
-    cliente_id INTEGER REFERENCES clientes(id) NOT NULL, -- Referência ao cliente
     nome TEXT NOT NULL,
     descricao TEXT,
     data_criacao TIMESTAMP DEFAULT now(),
     data_validade TIMESTAMP,
     data_processamento TIMESTAMP,
-    status TEXT CHECK (status IN ('ativa', 'concluida', 'cancelada', 'pausada', 'em_processamento'))
+    status TEXT CHECK (status IN ('ativa', 'concluida', 'cancelada', 'pausada', 'em_processamento')),
 );
 
 CREATE TABLE buscas (
     id SERIAL PRIMARY KEY,
-    cliente_id INTEGER REFERENCES clientes(id) NOT NULL, -- Referência ao cliente
     campanha_id INTEGER REFERENCES campanhas(id),
     regiao TEXT,
     tipo_empresa TEXT,
@@ -34,22 +21,19 @@ CREATE TABLE buscas (
 
 CREATE TABLE leads (
     id SERIAL PRIMARY KEY,
-    cliente_id INTEGER REFERENCES clientes(id) NOT NULL, -- Referência ao cliente
     busca_id INTEGER REFERENCES buscas(id),
     nome_empresa TEXT,
     nome_lead TEXT,
-    telefone TEXT, -- Removido UNIQUE global para permitir mesmo telefone em tenants diferentes
+    telefone TEXT UNIQUE,
     localizacao TEXT,
     avaliacao_media REAL,
     reviews INTEGER,
     tipo_empresa TEXT,
-    data_criacao TIMESTAMP DEFAULT now(),
-    UNIQUE(cliente_id, telefone) -- Garantir que telefone é único para cada cliente
+    data_criacao TIMESTAMP DEFAULT now()
 );
 
 CREATE TABLE mensagens (
     id SERIAL PRIMARY KEY,
-    cliente_id INTEGER REFERENCES clientes(id) NOT NULL, -- Referência ao cliente
     lead_id INTEGER REFERENCES leads(id),
     conteudo TEXT,
     status TEXT CHECK (status IN ('lido', 'recebido', 'pendente')),
@@ -59,7 +43,6 @@ CREATE TABLE mensagens (
 
 CREATE TABLE classificacoes (
     id SERIAL PRIMARY KEY,
-    cliente_id INTEGER REFERENCES clientes(id) NOT NULL, -- Referência ao cliente
     lead_id INTEGER REFERENCES leads(id),
     categoria TEXT,
     data_classificacao TIMESTAMP DEFAULT now()
@@ -67,7 +50,6 @@ CREATE TABLE classificacoes (
 
 CREATE TABLE api_keys (
     id SERIAL PRIMARY KEY,
-    cliente_id INTEGER REFERENCES clientes(id) NOT NULL, -- Referência ao cliente
     key_hash TEXT NOT NULL UNIQUE,
     name TEXT NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
@@ -76,4 +58,27 @@ CREATE TABLE api_keys (
     last_used_at TIMESTAMP,
     use_count INTEGER NOT NULL DEFAULT 0,
     allowed_ips TEXT[]
+)
+
+-- TRANSCRIÇÕES WHISPER - FILA
+
+CREATE TABLE transcricoes (
+    id SERIAL PRIMARY KEY,
+    nome_arquivo TEXT NOT NULL,
+    caminho_arquivo TEXT NOT NULL,
+    duracao INTEGER,
+    idioma TEXT,
+    data_envio TIMESTAMP DEFAULT now(),
+    data_processamento TIMESTAMP,
+    status TEXT CHECK (status IN ('waiting', 'processing', 'error', 'concluido')),
+    texto TEXT,
+    api_key_id INTEGER
+);
+
+
+CREATE TABLE mensagens_debounce (
+	telefone varchar(20) NOT NULL,
+	mensagens _text NULL,
+	ultima_atualizacao timestamp DEFAULT now() NULL,
+	CONSTRAINT mensagens_debounce_pkey PRIMARY KEY (telefone)
 );
