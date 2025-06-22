@@ -64,9 +64,9 @@ async def enqueue_search(region: str, business_type: str, keywords: str, max_res
         # Insere a busca no banco de dados com status "waiting"
         busca_id = await insert_busca(
             regiao=region,
-            tipo_empresa=business_type,
+            tipo_negocio=business_type,
             palavras_chave=keywords,
-            qtd_max=max_results,
+            qtd_leads=max_results,
             status="waiting"
         )
         
@@ -103,12 +103,12 @@ async def get_search_status(busca_id: int) -> Dict[str, Any]:
             "status": busca["status"],
             "params": {
                 "region": busca["regiao"],
-                "business_type": busca["tipo_empresa"],
+                "business_type": busca["tipo_negocio"],
                 "keywords": " ".join(busca["palavras_chave"]) if busca["palavras_chave"] else "",
-                "max_results": busca["qtd_max"]
+                "max_results": busca["qtd_leads"]
             },
             "processed_count": len(leads),
-            "completed": busca["status"] == "concluido"
+            "completed": busca["status"] == "done"
         }
     except Exception as e:
         log_exception(f"Erro ao verificar status da busca {busca_id}: {str(e)}")
@@ -129,15 +129,15 @@ async def process_search_task(busca_id: int) -> None:
         if busca["status"] != "processing":
             await update_busca_status(busca_id, "processing")
             
-        log_info(f"Iniciando processamento da busca {busca_id}: {busca['regiao']} - {busca['tipo_empresa']}")
+        log_info(f"Iniciando processamento da busca {busca_id}: {busca['regiao']} - {busca['tipo_negocio']}")
         
         # Executa o scraping
         keywords = " ".join(busca["palavras_chave"]) if busca["palavras_chave"] else ""
         
         results = await scrape_google_maps(
             region=busca["regiao"],
-            business_type=busca["tipo_empresa"],
-            max_results=busca["qtd_max"],
+            business_type=busca["tipo_negocio"],
+            max_results=busca["qtd_leads"],
             keywords=keywords
         )
         
@@ -146,8 +146,8 @@ async def process_search_task(busca_id: int) -> None:
             batch = results[i:i + BATCH_SIZE]
             await insert_batch_leads(busca_id, batch)
             
-        # Atualiza o status para "concluido" (de acordo com a constraint do banco)
-        await update_busca_status(busca_id, "concluido")
+        # Atualiza o status para "done" (de acordo com a constraint do banco)
+        await update_busca_status(busca_id, "done")
         
         log_info(f"Busca {busca_id} concluída com sucesso. {len(results)} resultados encontrados.")
         

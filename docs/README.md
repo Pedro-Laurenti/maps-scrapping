@@ -1,9 +1,3 @@
-# 📌 Considerações Técnicas
-
-- **Banco de dados**: PostgreSQL (armazenamento dos dados de leads, mensagens, classificações e histórico).
-- **Ferramentas utilizadas**: `n8n` para automações, `EvolutionAPI` para integração com whatsapp.
----
-
 # 🐳 Executando com Docker
 
 O sistema é composto por dois serviços Docker:
@@ -19,11 +13,11 @@ O sistema é composto por dois serviços Docker:
 
 ```
 # Configurações do Banco de Dados
-DB_HOST=168.231.99.240
-DB_PORT=6071
-DB_NAME=privado
-DB_USER=admin
-DB_PASSWORD=789456123
+DB_HOST=
+DB_PORT=
+DB_NAME=
+DB_USER=
+DB_PASS=
 
 # Configurações de Processamento
 BATCH_SIZE=20

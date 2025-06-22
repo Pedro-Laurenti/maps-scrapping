@@ -43,13 +43,6 @@ async def validate_api_key(api_key: str = Security(API_KEY_HEADER), client_ip: s
             log_warning(f"Tentativa de uso de API Key de IP não autorizado: {client_ip} (ID: {record['id']})")
             return False
         
-        update_query = """
-            UPDATE api_keys
-            SET last_used_at = NOW(), use_count = use_count + 1
-            WHERE id = $1
-        """
-        await conn.execute(update_query, record["id"])
-        
         return True
     
     return await with_connection(validate)

@@ -1,7 +1,6 @@
 services:
   maps-scraper-api:
     build: .
-    # container_name removido para evitar conflitos
     restart: always
     env_file:
       - .env
@@ -10,7 +9,7 @@ services:
       - DB_PORT=${DB_PORT}
       - DB_NAME=${DB_NAME}
       - DB_USER=${DB_USER}
-      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_PASS=${DB_PASS}
       - BATCH_SIZE=${BATCH_SIZE}
       - MAX_CONCURRENT_TASKS=${MAX_CONCURRENT_TASKS}
       - QUEUE_CHECK_INTERVAL=${QUEUE_CHECK_INTERVAL}
@@ -23,7 +22,6 @@ services:
 
   maps-scraper-worker:
     build: .
-    # container_name removido para evitar conflitos
     restart: always
     env_file:
       - .env
@@ -32,7 +30,7 @@ services:
       - DB_PORT=${DB_PORT}
       - DB_NAME=${DB_NAME}
       - DB_USER=${DB_USER}
-      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_PASS=${DB_PASS}
       - BATCH_SIZE=${BATCH_SIZE}
       - MAX_CONCURRENT_TASKS=${MAX_CONCURRENT_TASKS}
       - QUEUE_CHECK_INTERVAL=${QUEUE_CHECK_INTERVAL}
