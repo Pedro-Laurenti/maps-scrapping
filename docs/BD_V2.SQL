@@ -103,8 +103,7 @@ CREATE TABLE api_keys (
     name TEXT NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
     expires_at TIMESTAMP,
-    is_active BOOLEAN NOT NULL DEFAULT TRUE,
-    allowed_ips TEXT[]
+    is_active BOOLEAN NOT NULL DEFAULT TRUE
 );
 
 /* =================================================

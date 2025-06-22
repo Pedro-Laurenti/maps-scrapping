@@ -21,7 +21,7 @@ async def validate_api_key(api_key: str = Security(API_KEY_HEADER), client_ip: s
     
     async def validate(conn):
         query = """
-            SELECT id, expires_at, is_active, allowed_ips
+            SELECT id, expires_at, is_active
             FROM api_keys
             WHERE key_hash = $1
         """
@@ -37,10 +37,6 @@ async def validate_api_key(api_key: str = Security(API_KEY_HEADER), client_ip: s
         
         if record["expires_at"] and datetime.now() > record["expires_at"]:
             log_warning(f"Tentativa de uso de API Key expirada (ID: {record['id']})")
-            return False
-        
-        if record["allowed_ips"] and client_ip and client_ip not in record["allowed_ips"]:
-            log_warning(f"Tentativa de uso de API Key de IP não autorizado: {client_ip} (ID: {record['id']})")
             return False
         
         return True
