@@ -64,7 +64,7 @@ async def enqueue_search(region: str, business_type: str, keywords: str, max_res
         # Insere a busca no banco de dados com status "waiting"
         busca_id = await insert_busca(
             regiao=region,
-            tipo_negocio=business_type,
+            tipo_empresa=business_type,
             palavras_chave=keywords,
             qtd_leads=max_results,
             status="waiting"
@@ -103,7 +103,7 @@ async def get_search_status(busca_id: int) -> Dict[str, Any]:
             "status": busca["status"],
             "params": {
                 "region": busca["regiao"],
-                "business_type": busca["tipo_negocio"],
+                "business_type": busca["tipo_empresa"],
                 "keywords": " ".join(busca["palavras_chave"]) if busca["palavras_chave"] else "",
                 "max_results": busca["qtd_leads"]
             },
@@ -129,14 +129,14 @@ async def process_search_task(busca_id: int) -> None:
         if busca["status"] != "processing":
             await update_busca_status(busca_id, "processing")
             
-        log_info(f"Iniciando processamento da busca {busca_id}: {busca['regiao']} - {busca['tipo_negocio']}")
+        log_info(f"Iniciando processamento da busca {busca_id}: {busca['regiao']} - {busca['tipo_empresa']}")
         
         # Executa o scraping
         keywords = " ".join(busca["palavras_chave"]) if busca["palavras_chave"] else ""
         
         results = await scrape_google_maps(
             region=busca["regiao"],
-            business_type=busca["tipo_negocio"],
+            business_type=busca["tipo_empresa"],
             max_results=busca["qtd_leads"],
             keywords=keywords
         )

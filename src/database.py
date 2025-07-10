@@ -6,7 +6,7 @@ from src.utils import (
 from typing import List, Dict, Any, Optional
 
 @handle_exceptions(message="Erro ao inserir busca no banco de dados", default_return=None)
-async def insert_busca(regiao: str, tipo_negocio: str, palavras_chave: str, 
+async def insert_busca(regiao: str, tipo_empresa: str, palavras_chave: str, 
                       qtd_leads: int, status: str = "waiting") -> int:
     """
     Insere uma nova busca no banco de dados e retorna o ID gerado
@@ -18,13 +18,13 @@ async def insert_busca(regiao: str, tipo_negocio: str, palavras_chave: str,
         
         # Insere a busca e retorna o ID gerado
         query = """
-            INSERT INTO buscas (campanha_id, regiao, tipo_negocio, palavras_chave, qtd_leads, data_criacao, status)
+            INSERT INTO buscas (campanha_id, regiao, tipo_empresa, palavras_chave, qtd_leads, data_criacao, status)
             VALUES (NULL, $1, $2, $3, $4, NOW(), $5)
             RETURNING id
         """
-        busca_id = await conn.fetchval(query, regiao, tipo_negocio, palavras_array, qtd_leads, status)
+        busca_id = await conn.fetchval(query, regiao, tipo_empresa, palavras_array, qtd_leads, status)
         
-        log_info(f"Nova busca inserida: ID {busca_id} - {regiao} - {tipo_negocio} (status: {status})")
+        log_info(f"Nova busca inserida: ID {busca_id} - {regiao} - {tipo_empresa} (status: {status})")
         return busca_id
     
     return await with_connection(insert)
@@ -51,7 +51,7 @@ async def insert_leads(busca_id: int, leads: List[Dict[str, Any]]) -> List[int]:
             try:
                 query = """
                     INSERT INTO leads (busca_id, nome_empresa, nome_lead, telefone, 
-                                      localizacao, avaliacao_media, reviews, tipo_negocio)
+                                      localizacao, avaliacao_media, reviews, tipo_empresa)
                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
                     RETURNING id
                 """
@@ -65,7 +65,7 @@ async def insert_leads(busca_id: int, leads: List[Dict[str, Any]]) -> List[int]:
                     lead.get("address", ""),
                     rating,  # avaliação média como float
                     reviews_count,  # número de reviews como inteiro
-                    lead.get("business_type", "")
+                    lead.get("category", "")  # Corrigido de "business_type" para "category"
                 )
                 lead_ids.append(lead_id)
             except asyncpg.UniqueViolationError:
@@ -164,7 +164,7 @@ async def get_next_busca_from_queue() -> Optional[Dict[str, Any]]:
                 """
                 await conn.execute(update_query, busca_dict['id'])
                 
-                log_info(f"Iniciando processamento da busca {busca_dict['id']}: {busca_dict['regiao']} - {busca_dict['tipo_negocio']}")
+                log_info(f"Iniciando processamento da busca {busca_dict['id']}: {busca_dict['regiao']} - {busca_dict['tipo_empresa']}")
                 
                 return busca_dict
         

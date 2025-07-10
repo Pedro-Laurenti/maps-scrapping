@@ -341,9 +341,6 @@ async def scrape_google_maps(region: str, business_type: str, max_results: int =
                 log_warning(f"Meta parcialmente atingida: {count}/{max_results} estabelecimentos válidos extraídos de {processed} processados.")
                 if count == 0:
                     log_warning("Nenhum resultado válido encontrado que atenda aos critérios.")
-                
-            efficiency = (count / processed * 100) if processed > 0 else 0
-            log_info(f"Eficiência da extração: {efficiency:.1f}% (quanto maior, melhor)")
             
         except Exception as e:
             log_error(f"Erro durante a extração: {str(e)}")

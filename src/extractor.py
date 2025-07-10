@@ -66,10 +66,84 @@ async def extract_business_data(page: Page, business_element) -> Dict[str, Any]:
                 
             # Extrair categoria do estabelecimento
             try:
-                category_button = await page.query_selector('button.DkEaL, button[jsaction*="category"]')
+                # Primeira tentativa: botão específico com jsaction contendo "category"
+                category_button = await page.query_selector('button[jsaction*="category"]')
                 if category_button:
                     category = await category_button.inner_text()
-                    business_data["category"] = category.strip()
+                    if category and category.strip():
+                        business_data["category"] = category.strip()
+                        log_debug(f"Categoria encontrada (jsaction): {category.strip()}")
+                
+                # Segunda tentativa: botão com classe DkEaL
+                if not business_data["category"]:
+                    category_button = await page.query_selector('button.DkEaL')
+                    if category_button:
+                        category = await category_button.inner_text()
+                        if category and category.strip():
+                            business_data["category"] = category.strip()
+                            log_debug(f"Categoria encontrada (DkEaL): {category.strip()}")
+                
+                # Terceira tentativa: busca mais ampla por botões que podem conter a categoria
+                if not business_data["category"]:
+                    category_buttons = await page.query_selector_all('button.DkEaL, button[jsaction*="wfvdle470"]')
+                    for button in category_buttons:
+                        try:
+                            text = await button.inner_text()
+                            if text and text.strip() and len(text.strip()) > 2:
+                                business_data["category"] = text.strip()
+                                log_debug(f"Categoria encontrada (busca ampla): {text.strip()}")
+                                break
+                        except:
+                            continue
+                
+                # Quarta tentativa: JavaScript para buscar o botão de categoria
+                if not business_data["category"]:
+                    category_js = await page.evaluate("""
+                        () => {
+                            // Busca por botões que contenham "category" no jsaction
+                            const categoryButtons = Array.from(document.querySelectorAll('button[jsaction*="category"]'));
+                            if (categoryButtons.length > 0) {
+                                return categoryButtons[0].innerText.trim();
+                            }
+                            
+                            // Busca por botões com classe DkEaL
+                            const dkealButtons = Array.from(document.querySelectorAll('button.DkEaL'));
+                            for (const button of dkealButtons) {
+                                const text = button.innerText.trim();
+                                if (text && text.length > 2) {
+                                    return text;
+                                }
+                            }
+                            
+                            // Busca por botões que podem conter categoria próximos à avaliação
+                            const allButtons = Array.from(document.querySelectorAll('button'));
+                            for (const button of allButtons) {
+                                const text = button.innerText.trim();
+                                // Verifica se é uma possível categoria (não é número, não é muito longo)
+                                if (text && text.length > 2 && text.length < 50 && 
+                                    !text.match(/^[0-9,]+$/) && 
+                                    !text.includes('avaliações') &&
+                                    !text.includes('estrelas') &&
+                                    !text.includes('(') &&
+                                    button.jsAction && button.jsAction.includes('category')) {
+                                    return text;
+                                }
+                            }
+                            
+                            return null;
+                        }
+                    """)
+                    if category_js and category_js.strip():
+                        business_data["category"] = category_js.strip()
+                        log_debug(f"Categoria encontrada (JavaScript): {category_js.strip()}")
+                
+                if not business_data["category"]:
+                    log_warning("Não foi possível extrair a categoria do estabelecimento")
+                    # Debug da estrutura da página
+                    debug_info = await debug_page_structure(page)
+                    if debug_info and debug_info.get('possibleCategories'):
+                        log_debug(f"Possíveis categorias encontradas: {[cat['text'] for cat in debug_info['possibleCategories']]}")
+                
             except Exception as e:
                 log_error(f"Erro ao extrair categoria: {str(e)}")
               # Extrair avaliação (rating)
@@ -130,3 +204,66 @@ async def extract_business_data(page: Page, business_element) -> Dict[str, Any]:
     
     # Retorna os dados mesmo se apenas alguns campos forem preenchidos
     return business_data if business_data["name"] else None
+
+async def debug_page_structure(page: Page):
+    """
+    Função auxiliar para debugar a estrutura da página quando não conseguir extrair dados
+    """
+    try:
+        debug_info = await page.evaluate("""
+            () => {
+                const result = {
+                    categoryButtons: [],
+                    allButtons: [],
+                    possibleCategories: []
+                };
+                
+                // Encontra todos os botões com categoria
+                const categoryBtns = document.querySelectorAll('button[jsaction*="category"]');
+                categoryBtns.forEach(btn => {
+                    result.categoryButtons.push({
+                        text: btn.innerText.trim(),
+                        jsaction: btn.getAttribute('jsaction'),
+                        className: btn.className
+                    });
+                });
+                
+                // Encontra botões DkEaL
+                const dkealBtns = document.querySelectorAll('button.DkEaL');
+                dkealBtns.forEach(btn => {
+                    result.allButtons.push({
+                        text: btn.innerText.trim(),
+                        className: btn.className,
+                        jsaction: btn.getAttribute('jsaction')
+                    });
+                });
+                
+                // Busca por possíveis categorias
+                const allBtns = document.querySelectorAll('button');
+                allBtns.forEach(btn => {
+                    const text = btn.innerText.trim();
+                    if (text && text.length > 2 && text.length < 50 && 
+                        !text.match(/^[0-9,]+$/) && 
+                        !text.includes('avaliações') &&
+                        !text.includes('estrelas') &&
+                        !text.includes('(') &&
+                        !text.includes('Direções') &&
+                        !text.includes('Ligar')) {
+                        result.possibleCategories.push({
+                            text: text,
+                            className: btn.className,
+                            jsaction: btn.getAttribute('jsaction')
+                        });
+                    }
+                });
+                
+                return result;
+            }
+        """)
+        
+        log_debug(f"Estrutura da página para debug: {debug_info}")
+        return debug_info
+        
+    except Exception as e:
+        log_error(f"Erro ao debugar estrutura da página: {str(e)}")
+        return None
