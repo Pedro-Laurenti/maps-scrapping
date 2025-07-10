@@ -91,7 +91,7 @@ CREATE TABLE mensagens_debounce (
 
 CREATE TABLE classificacoes (
     id SERIAL PRIMARY KEY,
-    categoria TEXT CHECK (categoria IN ('frio', 'respondeu', 'irritado', 'apresentacao')),
+    categoria TEXT CHECK (categoria IN ('frio', 'respondeu', 'irritado', 'apresentacao', 'ia', 'nao-dono', 'sem-whatsapp')),
     lead_id INTEGER REFERENCES leads(id),
     cliente_id INTEGER REFERENCES clientes(id),
     data_criacao TIMESTAMP DEFAULT now()
