@@ -72,13 +72,23 @@ CREATE TABLE leads_clientes (
     data_criacao TIMESTAMP DEFAULT now()
 );
 
-CREATE TABLE mensagens (
+CREATE TABLE mensagens_ia (
     id SERIAL PRIMARY KEY,
-    conteudo TEXT,
-    status TEXT CHECK (status IN ('lido', 'recebido', 'pendente')),
-    emissor TEXT CHECK (emissor IN ('ia', 'lead')),
-    instancia_id INTEGER REFERENCES instancias(id),
-    lead_id INTEGER REFERENCES leads(id),
+    conteudo TEXT NOT NULL,
+    status TEXT CHECK (status IN ('enviada', 'entregue', 'lida', 'erro')) DEFAULT 'enviada',
+    instancia_id INTEGER REFERENCES instancias(id) NOT NULL,
+    lead_id INTEGER REFERENCES leads(id) NOT NULL,
+    total_tokens INTEGER,
+    estimated_cost DECIMAL(10, 8),
+    data_criacao TIMESTAMP DEFAULT now()
+);
+
+CREATE TABLE mensagens_lead (
+    id SERIAL PRIMARY KEY,
+    conteudo TEXT NOT NULL,
+    status TEXT CHECK (status IN ('recebida', 'processada', 'ignorada')) DEFAULT 'recebida',
+    lead_id INTEGER REFERENCES leads(id) NOT NULL,
+    instancia_id INTEGER REFERENCES instancias(id) NOT NULL,
     data_criacao TIMESTAMP DEFAULT now()
 );
 
