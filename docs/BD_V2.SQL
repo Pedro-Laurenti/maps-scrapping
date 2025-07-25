@@ -10,8 +10,8 @@ CREATE TABLE clientes (
     nome TEXT NOT NULL,
     email TEXT,
     telefone TEXT,
-    prompt_mensagem_qualificacao TEXT,
     prompt_geracao_mensagem TEXT,
+    mensagem_conclusao TEXT,
     data_criacao TIMESTAMP DEFAULT now()
 );
 
@@ -35,6 +35,17 @@ CREATE TABLE instancias (
     data_criacao TIMESTAMP DEFAULT now()
 );
 
+CREATE TABLE segmentos_cliente (
+    id SERIAL PRIMARY KEY,
+    cliente_id INTEGER REFERENCES clientes(id) NOT NULL,
+    nome_segmento TEXT NOT NULL,
+    descricao TEXT,
+    cronjob_contato TEXT NOT NULL,
+    ativo BOOLEAN DEFAULT TRUE,
+    data_criacao TIMESTAMP DEFAULT now(),
+    data_atualizacao TIMESTAMP DEFAULT now()
+);
+
 /* =================================================
  * SISTEMA DE LEADS E MENSAGENS
  * =================================================
@@ -48,7 +59,6 @@ CREATE TABLE campanhas (
     status TEXT CHECK (status IN ('active', 'completed', 'cancelled', 'paused', 'processing')),
     cliente_id INTEGER REFERENCES clientes(id),
     instancia_id INTEGER REFERENCES instancias(id),
-    agendamento_cron TEXT,
     data_criacao TIMESTAMP DEFAULT now()
 );
 
@@ -101,11 +111,14 @@ CREATE TABLE mensagens_debounce (
 
 CREATE TABLE classificacoes (
     id SERIAL PRIMARY KEY,
-    categoria TEXT CHECK (categoria IN ('frio', 'respondeu', 'irritado', 'apresentacao', 'ia', 'nao-dono', 'sem-whatsapp')),
+    categoria TEXT CHECK (categoria IN ('frio', 'respondeu', 'irritado', 'apresentacao', 'ia', 'nao-dono', 'sem-whatsapp', 'sem-interesse')),
     lead_id INTEGER REFERENCES leads(id),
     cliente_id INTEGER REFERENCES clientes(id),
-    data_criacao TIMESTAMP DEFAULT now()
+    data_criacao TIMESTAMP DEFAULT now(),
+    UNIQUE (lead_id, cliente_id)
 );
+
+-- INDEX não é mais necessário, pois agora a tabela possui uma constraint
 
 CREATE TABLE api_keys (
     id SERIAL PRIMARY KEY,
@@ -115,6 +128,18 @@ CREATE TABLE api_keys (
     expires_at TIMESTAMP,
     is_active BOOLEAN NOT NULL DEFAULT TRUE
 );
+
+CREATE TABLE mensagens_mockadas (
+    id SERIAL PRIMARY KEY,
+    cliente_id INTEGER REFERENCES clientes(id) NOT NULL,
+    tipo_mensagem TEXT CHECK (tipo_mensagem IN ('inicial', 'insistencia', 'qualificacao', 'conclusao', 'rejeicao', 'outro')) NOT NULL,
+    conteudo TEXT NOT NULL,
+    ativo BOOLEAN DEFAULT TRUE,
+    ordem INTEGER DEFAULT 1,
+    data_criacao TIMESTAMP DEFAULT now()
+);
+
+-- "tipo_mensagem" não vai fazer diferença na querie do fluxo, vc vai colocar tipo "usar mensagens_mockadas.id"
 
 /* =================================================
  * FILAS DE PROCESSAMENTO
@@ -131,6 +156,17 @@ CREATE TABLE buscas (
     status TEXT CHECK (status IN ('waiting', 'processing', 'error', 'done')),
     campanha_id INTEGER REFERENCES campanhas(id),
     data_criacao TIMESTAMP DEFAULT now()
+);
+
+CREATE TABLE agendamento_buscas (
+    id SERIAL PRIMARY KEY,
+    campanha_id INTEGER REFERENCES campanhas(id) NOT NULL,
+    nome_agendamento TEXT NOT NULL,
+    cronjob_busca TEXT NOT NULL,
+    ativo BOOLEAN DEFAULT TRUE,
+    parametros_busca JSONB,
+    data_criacao TIMESTAMP DEFAULT now(),
+    data_atualizacao TIMESTAMP DEFAULT now()
 );
 
 CREATE TABLE transcricoes (
@@ -192,3 +228,37 @@ CREATE TABLE pagamentos_cliente (
     status_pagamento TEXT CHECK (status_pagamento IN ('aprovado', 'pendente_aprovacao', 'recusado', 'estornado')) DEFAULT 'pendente_aprovacao',
     data_criacao TIMESTAMP DEFAULT now()
 );
+
+/* =================================================
+ * VIEWS
+ * =================================================
+ * Views para consultas unificadas
+ * ================================================= */
+
+CREATE VIEW mensagens AS
+SELECT 
+    'IA' AS tipo_remetente,
+    id,
+    conteudo,
+    status,
+    instancia_id,
+    lead_id,
+    total_tokens,
+    estimated_cost,
+    NULL::TEXT AS status_processamento,
+    data_criacao
+FROM mensagens_ia
+UNION ALL
+SELECT 
+    'LEAD' AS tipo_remetente,
+    id,
+    conteudo,
+    status::TEXT,
+    instancia_id,
+    lead_id,
+    NULL::INTEGER AS total_tokens,
+    NULL::DECIMAL(10,8) AS estimated_cost,
+    status AS status_processamento,
+    data_criacao
+FROM mensagens_lead
+ORDER BY data_criacao DESC;
