@@ -62,6 +62,15 @@ CREATE TABLE campanhas (
     data_criacao TIMESTAMP DEFAULT now()
 );
 
+CREATE TABLE campanha_controle (
+    id SERIAL PRIMARY KEY,
+    id_campanhas INTEGER REFERENCES campanhas(id) NOT NULL,
+    data_atual DATE NOT NULL,
+    leads_acionados INTEGER DEFAULT 0,
+    data_criacao TIMESTAMP DEFAULT now(),
+    data_atualizacao TIMESTAMP DEFAULT now()
+);
+
 CREATE TABLE leads (
     id SERIAL PRIMARY KEY,
     nome_empresa TEXT,
@@ -132,7 +141,7 @@ CREATE TABLE api_keys (
 CREATE TABLE mensagens_mockadas (
     id SERIAL PRIMARY KEY,
     cliente_id INTEGER REFERENCES clientes(id) NOT NULL,
-    tipo_mensagem TEXT CHECK (tipo_mensagem IN ('inicial', 'insistencia', 'qualificacao', 'conclusao', 'rejeicao', 'outro')) NOT NULL,
+    tipo_mensagem TEXT NOT NULL,
     conteudo TEXT NOT NULL,
     ativo BOOLEAN DEFAULT TRUE,
     ordem INTEGER DEFAULT 1,
@@ -156,17 +165,6 @@ CREATE TABLE buscas (
     status TEXT CHECK (status IN ('waiting', 'processing', 'error', 'done')),
     campanha_id INTEGER REFERENCES campanhas(id),
     data_criacao TIMESTAMP DEFAULT now()
-);
-
-CREATE TABLE agendamento_buscas (
-    id SERIAL PRIMARY KEY,
-    campanha_id INTEGER REFERENCES campanhas(id) NOT NULL,
-    nome_agendamento TEXT NOT NULL,
-    cronjob_busca TEXT NOT NULL,
-    ativo BOOLEAN DEFAULT TRUE,
-    parametros_busca JSONB,
-    data_criacao TIMESTAMP DEFAULT now(),
-    data_atualizacao TIMESTAMP DEFAULT now()
 );
 
 CREATE TABLE transcricoes (
