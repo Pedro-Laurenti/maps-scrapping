@@ -51,7 +51,7 @@ async def insert_leads(busca_id: int, leads: List[Dict[str, Any]]) -> List[int]:
             try:
                 query = """
                     INSERT INTO leads (busca_id, nome_empresa, nome_lead, telefone, 
-                                      localizacao, avaliacao_media, reviews, tipo_negocio)
+                                      localizacao, avaliacao_media, reviews, tipo_empresa)
                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
                     RETURNING id
                 """
