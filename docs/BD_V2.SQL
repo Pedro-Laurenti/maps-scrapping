@@ -88,6 +88,7 @@ CREATE TABLE leads_clientes (
     id SERIAL PRIMARY KEY,
     lead_id INTEGER REFERENCES leads(id),
     cliente_id INTEGER REFERENCES clientes(id),
+    campanha_id INTEGER REFERENCES campanhas(id),
     data_criacao TIMESTAMP DEFAULT now()
 );
 
@@ -164,6 +165,13 @@ CREATE TABLE buscas (
     qtd_leads INTEGER,
     status TEXT CHECK (status IN ('waiting', 'processing', 'error', 'done')),
     campanha_id INTEGER REFERENCES campanhas(id),
+    data_criacao TIMESTAMP DEFAULT now()
+);
+
+CREATE TABLE regiao (
+    id SERIAL PRIMARY KEY,
+    campanha_id INTEGER REFERENCES campanhas(id),
+    regiao TEXT,
     data_criacao TIMESTAMP DEFAULT now()
 );
 
